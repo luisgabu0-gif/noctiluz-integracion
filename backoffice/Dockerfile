@@ -12,7 +12,8 @@ RUN sed -ri 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-avail
  && sed -ri 's!^Listen 80$!Listen ${PORT}!' /etc/apache2/ports.conf \
  && sed -ri 's!<VirtualHost \*:80>!<VirtualHost *:${PORT}>!' /etc/apache2/sites-available/000-default.conf \
  && echo 'ServerTokens Prod\nServerSignature Off' >> /etc/apache2/conf-available/security.conf \
- && echo 'expose_php = Off' > /usr/local/etc/php/conf.d/seguridad.ini
+ && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+ && printf 'expose_php = Off\ndisplay_errors = Off\nlog_errors = On\n' > /usr/local/etc/php/conf.d/seguridad.ini
 
 # Render indica el puerto en $PORT (10000 por defecto)
 ENV PORT=10000

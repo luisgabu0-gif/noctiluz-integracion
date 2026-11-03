@@ -2,7 +2,7 @@
 .env
 *.env
 !.env.example
-config.php
+public_html/app/config.php
 
 # Datos locales
 datos/
