@@ -1,0 +1,68 @@
+:root {
+  --fondo: #0b1020;
+  --tarjeta: #141b31;
+  --borde: #26304d;
+  --texto: #e6ebff;
+  --suave: #a9b4d0;
+  --acento: #3fd0c9;
+  --alerta: #ff7a6b;
+  --aviso: #ffd166;
+  --radio: 12px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fondo); color: var(--texto); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--acento); }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--aviso); outline-offset: 2px; }
+code { background: #0003; padding: 0 4px; border-radius: 4px; }
+
+.barra { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--borde); background: #0d1328; }
+.marca { color: var(--texto); text-decoration: none; font-weight: 800; letter-spacing: .08em; display: flex; align-items: center; gap: 8px; }
+.marca small { font-weight: 500; letter-spacing: 0; color: var(--suave); }
+.punto { width: 12px; height: 12px; border-radius: 50%; background: var(--acento); box-shadow: 0 0 12px var(--acento); }
+.barra nav { display: flex; flex-wrap: wrap; gap: 4px; }
+.barra nav a, .filtro a { color: var(--suave); text-decoration: none; padding: 6px 10px; border-radius: 8px; }
+.barra nav a[aria-current], .filtro a[aria-current] { background: var(--tarjeta); color: var(--texto); }
+.usuario { margin-left: auto; color: var(--suave); font-size: 14px; }
+
+main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 40px; }
+h1 { font-size: 26px; margin: 8px 0 12px; }
+h2 { font-size: 15px; margin: 0 0 10px; color: var(--suave); font-weight: 600; }
+.suave { color: var(--suave); }
+.titulo-fila { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.filtro { display: flex; gap: 4px; }
+
+.tarjeta { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); padding: 16px; margin: 0 0 16px; }
+.acceso { max-width: 420px; margin: 40px auto; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; }
+.kpi .cifra { font-size: 32px; font-weight: 800; margin: 0; }
+.kpi p { margin: 2px 0 0; font-size: 13px; }
+.kpi-alerta { border-color: var(--alerta); }
+.grafico { position: relative; height: 300px; }
+.dos-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+th { color: var(--suave); font-weight: 600; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabla-scroll { overflow-x: auto; }
+
+.formulario { display: grid; gap: 12px; }
+.formulario label { display: grid; gap: 4px; color: var(--suave); }
+.en-linea { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+input, select { background: #0b1020; color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 8px 10px; font: inherit; }
+button { background: var(--acento); color: #04201f; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+button.secundario { background: transparent; color: var(--texto); border: 1px solid var(--borde); }
+
+.aviso { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--acento); background: #3fd0c91a; }
+.aviso-error { border-color: var(--alerta); background: #ff7a6b1a; }
+
+.estado, .prioridad, .resultado { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #ffffff14; white-space: nowrap; }
+.estado-pagado, .estado-entregado, .resultado-ok { background: #3fd0c933; color: #8ff0ea; }
+.estado-enviado, .estado-en_preparacion { background: #6b8cff33; color: #b9c8ff; }
+.estado-incidencia, .estado-cancelado, .resultado-error, .prioridad-alta { background: #ff7a6b33; color: #ffb3aa; }
+.prioridad-media, .resultado-duplicado { background: #ffd16633; color: #ffe2a0; }
+
+.pie { text-align: center; color: var(--suave); font-size: 12px; padding: 20px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

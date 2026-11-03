@@ -1,0 +1,10 @@
+# Secretos: nunca al repositorio
+.env
+*.env
+!.env.example
+config.php
+
+# Datos locales
+datos/
+*.sqlite
+*.log

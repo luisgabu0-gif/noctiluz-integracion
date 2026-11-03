@@ -1,0 +1,13 @@
+{
+  "incidencia": "INC-261103-AB12",
+  "modelo": "gemini-2.5-flash",
+  "propuesta": {
+    "resumen": "La clienta recibió la chaqueta NEO con la tira LED izquierda sin funcionar; pedido entregado.",
+    "clasificacion": "producto",
+    "prioridad": "alta",
+    "accion_propuesta": "marcar_pedido_incidencia",
+    "respuesta_cliente": "Hola, Lucía. Sentimos lo de la tira LED. Hemos abierto una incidencia con tu pedido NCZ-261101-K7P3QX y en 24 h te enviamos la etiqueta para cambiarla sin coste.",
+    "justificacion": "Producto defectuoso en un pedido ya entregado: corresponde marcar el pedido con incidencia para gestionar el cambio. Es su primera incidencia.",
+    "confianza": 0.86
+  }
+}

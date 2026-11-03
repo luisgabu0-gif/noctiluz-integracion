@@ -1,0 +1,7 @@
+{
+  "event_id": "8a2d3b4c-5e6f-4a1b-8c9d-0e1f2a3b4c5d",
+  "event": "order.status_changed",
+  "occurred_at": "2026-11-01T18:31:10+01:00",
+  "source": "tienda-noctiluz",
+  "data": { "codigo": "NCZ-261101-K7P3QX", "de": "creado", "a": "pagado", "actor": "pasarela", "motivo": "Pago simulado aprobado" }
+}

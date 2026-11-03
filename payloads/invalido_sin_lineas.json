@@ -1,0 +1,7 @@
+{
+  "event_id": "0b9a8c7d-6e5f-4a3b-2c1d-0e9f8a7b6c5d",
+  "event": "order.created",
+  "occurred_at": "2026-11-01T19:00:00+01:00",
+  "source": "tienda-noctiluz",
+  "data": { "codigo": "NCZ-261101-ZZZZZZ", "estado": "creado", "total": 10, "cliente": { "nombre": "Prueba Error", "email": "error@ejemplo.test" }, "lineas": [] }
+}
