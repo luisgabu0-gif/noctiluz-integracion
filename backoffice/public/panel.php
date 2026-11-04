@@ -24,8 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             case 'eliminar_pedido':
                 $codigo = (string) ($_POST['codigo'] ?? '');
-                Integracion::eliminarPedido($codigo, $actor);
-                Panel::aviso("Pedido {$codigo} eliminado del back-office. En la tienda sigue existiendo.");
+                $incidencias = Integracion::eliminarPedido($codigo, $actor);
+                Panel::aviso("Pedido {$codigo} eliminado del back-office" . ($incidencias ? " con sus incidencias ({$incidencias})" : '') . '. En la tienda sigue existiendo.');
                 break;
             case 'reintentar':
                 $r = Sincronizacion::enviar((int) ($_POST['id'] ?? 0), 'Reintento manual', $actor);
@@ -169,7 +169,7 @@ if ($vista === 'pedidos') {
       <?php foreach ($filas as $f): ?>
         <tr><td><a href="panel.php?vista=pedido&codigo=<?= urlencode($f['codigo']) ?>"><?= e($f['codigo']) ?></a></td><td><?= e($f['nombre']) ?></td>
           <td><?= etiquetaEstado($f['estado']) ?></td><td class="num"><?= (int) $f['unidades'] ?></td><td class="num"><?= eur($f['total']) ?></td><td><?= fecha($f['recibido_en']) ?></td>
-          <td><form method="post" onsubmit="return confirm('¿Eliminar este pedido del back-office? No se puede deshacer. En la tienda seguirá existiendo.');"><?= Panel::csrf() ?><input type="hidden" name="accion" value="eliminar_pedido"><input type="hidden" name="codigo" value="<?= e($f['codigo']) ?>"><input type="hidden" name="volver" value="panel.php?vista=pedidos"><button class="peligro" aria-label="Eliminar pedido <?= e($f['codigo']) ?>">Eliminar</button></form></td></tr>
+          <td><form method="post" onsubmit="return confirm('¿Eliminar este pedido del back-office, con sus incidencias y propuestas? No se puede deshacer. En la tienda seguirá existiendo.');"><?= Panel::csrf() ?><input type="hidden" name="accion" value="eliminar_pedido"><input type="hidden" name="codigo" value="<?= e($f['codigo']) ?>"><input type="hidden" name="volver" value="panel.php?vista=pedidos"><button class="peligro" aria-label="Eliminar pedido <?= e($f['codigo']) ?>">Eliminar</button></form></td></tr>
       <?php endforeach; ?>
       <?php if (!$filas): ?><tr><td colspan="7" class="suave">Aún no ha llegado ningún pedido. Haz uno en noctiluz.onl.</td></tr><?php endif; ?>
     </tbody></table></div></section>

@@ -202,28 +202,29 @@ final class Integracion
     // ── Herramientas de consulta del agente ─────────────────────────────────────────────────────
 
     /**
-     * Borra un pedido solo del back-office; la tienda conserva el suyo.
-     * Con incidencias no se borra, para no perder su relación con el pedido.
+     * Borra un pedido solo del back-office, con sus incidencias y las propuestas del agente.
+     * La tienda conserva el suyo. Devuelve cuántas incidencias se han borrado.
      */
-    public static function eliminarPedido(string $codigo, string $actor): void
+    public static function eliminarPedido(string $codigo, string $actor): int
     {
         $p = Db::uno('SELECT id, estado, total FROM pedidos WHERE codigo = ?', [$codigo]);
         if ($p === null) {
             throw new ErrorNegocio('Ese pedido ya no existe.', 404);
         }
         $id = (int) $p['id'];
-        if ((int) Db::valor('SELECT COUNT(*) FROM incidencias WHERE pedido_id = ?', [$id]) > 0) {
-            throw new ErrorNegocio("El pedido {$codigo} tiene incidencias y no se puede eliminar.");
-        }
-        Db::transaccion(function () use ($id, $codigo, $p, $actor) {
+        $incidencias = (int) Db::valor('SELECT COUNT(*) FROM incidencias WHERE pedido_id = ?', [$id]);
+        Db::transaccion(function () use ($id, $codigo, $p, $actor, $incidencias) {
+            Db::ejecutar('DELETE FROM propuestas_agente WHERE incidencia_id IN (SELECT id FROM incidencias WHERE pedido_id = ?)', [$id]);
+            Db::ejecutar('DELETE FROM incidencias WHERE pedido_id = ?', [$id]);
             Db::ejecutar('DELETE FROM sincronizaciones WHERE pedido_id = ?', [$id]);
             Db::ejecutar('DELETE FROM historial_estados WHERE pedido_id = ?', [$id]);
             Db::ejecutar('DELETE FROM pedido_lineas WHERE pedido_id = ?', [$id]);
             Db::ejecutar('DELETE FROM pedidos WHERE id = ?', [$id]);
             // «ignorado» deja constancia del borrado sin alterar la tasa de éxito de la integración
             Ejecuciones::registrar('Back-office · Eliminar pedido', 'pedido', null, 'ignorado', null, null,
-                "Pedido {$codigo} eliminado por {$actor}", ['codigo' => $codigo, 'estado' => $p['estado'], 'total' => $p['total']]);
+                "Pedido {$codigo} eliminado por {$actor}", ['codigo' => $codigo, 'estado' => $p['estado'], 'total' => $p['total'], 'incidencias' => $incidencias]);
         });
+        return $incidencias;
     }
 
     public static function consultarPedido(string $codigo): array
