@@ -86,7 +86,7 @@
 <p>La tienda no llama a n8n en mitad de la compra. Guarda el evento y una copia en la cola <code>integracion_salida</code> <strong>dentro de la misma transacción</strong> que el pedido, y lo envía al terminar la petición, con el cliente ya atendido. Es el patrón <em>outbox</em>: si la tienda se cae justo después de guardar, el aviso no se pierde, y si n8n está dormido, el cliente no lo nota.</p>
 
 <h2>3. Contrato de integración</h2>
-<p>El contrato completo está en <code>docs/contrato_integracion.md</code>, y los payloads de los tres escenarios en <code>docs/payloads/</code>. Todos los mensajes comparten un sobre con <code>version</code>, <code>id</code> (UUID), <code>tipo</code>, <code>ocurrido_en</code>, <code>origen</code>, <code>sesion_id</code> y <code>datos</code>, más una <strong>foto</strong> del pedido o de la incidencia. Con esa foto el receptor no tiene que volver a preguntar a la tienda.</p>
+<p>El contrato completo está en <code>docs/contrato_integracion.md</code> del repositorio <code>noctiluz-ucam</code>, y los payloads de los tres escenarios en <code>docs/payloads/</code> del mismo repositorio. Todos los mensajes comparten un sobre con <code>version</code>, <code>id</code> (UUID), <code>tipo</code>, <code>ocurrido_en</code>, <code>origen</code>, <code>sesion_id</code> y <code>datos</code>, más una <strong>foto</strong> del pedido o de la incidencia. Con esa foto el receptor no tiene que volver a preguntar a la tienda.</p>
 <pre>{ "version": 1, "id": "6f1c2d3e-…", "tipo": "order.created", "ocurrido_en": "2026-11-04T18:30:12+01:00",
   "origen": "servidor", "datos": { "codigo": "NCZ-261104-K7M2QP", "total": 73.95, … },
   "pedido": { "estado": "creado", "cliente": {…}, "lineas": […], "totales": {…}, "envio": {…} } }</pre>
@@ -155,7 +155,7 @@
 <p>Telegram se vincula sin pedir datos personales. El pedido muestra un enlace al bot que incluye el código y una firma HMAC, y así nadie puede vincular un pedido ajeno.</p>
 
 <h2>9. Métricas generadas</h2>
-<p>El cuadro de mando del back-office calcula nueve métricas en el momento de consultarlo, a partir de las tablas reales y de los eventos de la tienda. Ninguna cifra se introduce a mano. La justificación con sus referencias está en <code>docs/justificacion_metricas.md</code>, y se apoya en las dimensiones de rendimiento de procesos de Dumas et al. (2018), las señales de monitorización de Beyer et al. (2016), la gestión de servicio de ITIL 4 y el artículo 14 del Reglamento (UE) 2024/1689.</p>
+<p>El cuadro de mando del back-office calcula nueve métricas en el momento de consultarlo, a partir de las tablas reales y de los eventos de la tienda. Ninguna cifra se introduce a mano. La justificación con sus referencias está en <code>docs/justificacion_metricas.md</code> del repositorio <code>noctiluz-ucam</code>, y se apoya en las dimensiones de rendimiento de procesos de Dumas et al. (2018), las señales de monitorización de Beyer et al. (2016), la gestión de servicio de ITIL 4 y el artículo 14 del Reglamento (UE) 2024/1689.</p>
 <table>
   <tr><th>Métrica</th><th>Fuente</th><th>Decisión que permite</th></tr>
   <tr><td>M1 Pedidos por día (gráfico de barras, 30 días)</td><td>Pedidos del back-office</td><td>Detectar caídas de demanda o de la integración</td></tr>
@@ -172,6 +172,7 @@
 <h2>10. Riesgos, limitaciones y mejoras</h2>
 <table>
   <tr><th>Riesgo o limitación</th><th>Efecto</th><th>Mejora posible</th></tr>
+  <tr><td>n8n dispone de 512 MB en Render gratuito</td><td>Reinicios si se queda sin memoria; los eventos esperan en la cola de la tienda</td><td>Plan con más memoria</td></tr>
   <tr><td>Render gratuito se duerme a los 15 minutos</td><td>Hasta un minuto de retraso en el primer evento</td><td>Plan de pago o un servicio siempre activo</td></tr>
   <tr><td>Los reintentos de la tienda dependen de que entre tráfico o de que n8n esté despierto</td><td>Un evento puede esperar más de lo previsto</td><td>Tarea programada en el hosting</td></tr>
   <tr><td>Disponibilidad de Gemini (se observaron saturaciones)</td><td>La incidencia pasa a gestión manual</td><td>Modelo de respaldo automático</td></tr>
@@ -181,7 +182,7 @@
   <tr><td>Datos de clientes en un proveedor de IA externo</td><td>Sería un problema de RGPD con datos reales</td><td>Seudonimizar y firmar un acuerdo de tratamiento</td></tr>
   <tr><td>Stock no sincronizado con el back-office</td><td>El back-office no decide sobre disponibilidad</td><td>Añadir un evento de inventario</td></tr>
 </table>
-<p>La matriz de decisión (<code>docs/matriz_decision.md</code>) justifica la arquitectura híbrida frente a las demás alternativas.</p>
+<p>La matriz de decisión (<code>docs/matriz_decision.md</code>, en el repositorio <code>noctiluz-ucam</code>) justifica la arquitectura híbrida frente a las demás alternativas.</p>
 
 <h2>11. Declaración del punto de partida</h2>
 <p>La solución parte de la tienda de la Tarea 1, desarrollada por el grupo a partir de una versión inicial generada con IA, como se declaró en aquella memoria. El back-office, los flujos y la integración son desarrollo nuevo de esta tarea, sin repositorios ni plantillas de terceros. Se usan como herramientas n8n, Render, PayPal sandbox, Gemini, Telegram y Chart.js. El código se escribió con ayuda de IA generativa, como detalla el anexo A.</p>
@@ -214,6 +215,9 @@
   <tr><td>El formato del contrato no coincidía con el del back-office</td><td>Traducir en n8n</td></tr>
   <tr><td>La salida del agente no incluía datos consultados ni riesgos</td><td>Añadir ambos campos al esquema y a la validación; los datos consultados los escribe n8n</td></tr>
   <tr><td>El <code>.gitignore</code> excluía <code>Config.php</code> por no distinguir mayúsculas en Windows, y el back-office no arrancaba en Render</td><td>Acotar la regla a <code>public_html/app/config.php</code> y ocultar los errores de PHP en producción</td></tr>
+  <tr><td>n8n se reiniciaba en Render con salida 134 mientras se importaban los flujos</td><td>Ajustar <code>NODE_OPTIONS</code>, desactivar funciones no usadas y limpiar ejecuciones antiguas</td></tr>
+  <tr><td>Al importar los flujos, las credenciales no quedaban asignadas de forma visible</td><td>Guardar, recargar y comprobar la credencial de cada nodo antes de publicar</td></tr>
+  <tr><td>La tienda respondía 401 a n8n porque los tokens no coincidían</td><td>Usar el mismo valor en <code>config.php</code>, Render y n8n, y documentar qué valores deben coincidir</td></tr>
 </table>
 </body>
 </html>

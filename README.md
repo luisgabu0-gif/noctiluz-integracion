@@ -47,6 +47,12 @@ Variables de entorno, además de las de la base de datos (ejemplo en `n8n/.env.e
 | `N8N_RUNNERS_GRANT_TOKEN_TTL` | `120` |
 | `N8N_BLOCK_ENV_ACCESS_IN_NODE` | `false` |
 | `TELEGRAM_CHAT_SOPORTE` | ID del chat del equipo, que recibe las propuestas |
+| `NODE_OPTIONS` | `--max-old-space-size=384` |
+| `N8N_DIAGNOSTICS_ENABLED` | `false` |
+| `N8N_VERSION_NOTIFICATIONS_ENABLED` | `false` |
+| `N8N_TEMPLATES_ENABLED` | `false` |
+| `EXECUTIONS_DATA_PRUNE` | `true` |
+| `EXECUTIONS_DATA_MAX_AGE` | `72` |
 
 Credenciales que hay que crear, con estos nombres exactos, antes de importar los flujos:
 
@@ -58,7 +64,7 @@ Credenciales que hay que crear, con estos nombres exactos, antes de importar los
 | `Telegram account` | Telegram API | Token del bot |
 | `Google Gemini(PaLM) Api account` | Google Gemini(PaLM) API | Clave de Gemini |
 
-Importa los archivos de `n8n/` y publica los cinco flujos. En los flujos 1 a 4, elige `NOCTILUZ · Errores` en Settings → Error Workflow.
+Importa primero `99_errores.json` y después los flujos 1 a 4. Tras importar cada uno, guárdalo y recarga la página: hasta entonces el desplegable de credenciales puede salir vacío o mostrar un identificador. Comprueba la credencial de cada nodo y publícalo. En los flujos 1 a 4, elige `NOCTILUZ · Errores` en Settings → Error Workflow.
 
 > En Render gratuito (512 MB) los nodos de IA de LangChain agotan la memoria. Por eso el agente llama a Gemini con un nodo HTTP Request y el bucle de herramientas está hecho con nodos normales.
 
@@ -67,6 +73,14 @@ Importa los archivos de `n8n/` y publica los cinco flujos. En los flujos 1 a 4, 
 1. Ejecuta `database/actualizar_integracion.sql` en phpMyAdmin.
 2. Sube los archivos nuevos.
 3. Añade a `app/config.php` el bloque `integracion` de `app/config.ejemplo.php`, con `activo` en `true`.
+
+Tres valores tienen que coincidir entre sistemas:
+
+| Valor | Dónde va |
+|---|---|
+| Token de la tienda | `integracion.token`, `TIENDA_API_TOKEN` del back-office y credencial `NOCTILUZ Tienda` de n8n (con `Bearer `) |
+| Token del webhook de estado | `N8N_WEBHOOK_TOKEN` del back-office y credencial `NOCTILUZ Webhook back-office` |
+| Secreto de Telegram | `integracion.secreto_telegram` y `TELEGRAM_VINCULO_SECRETO` del back-office |
 
 ## Ejecución y pruebas
 
@@ -89,6 +103,7 @@ Con los flujos publicados:
 ## Limitaciones conocidas
 
 - Render gratuito duerme los servicios tras 15 minutos sin tráfico y tardan cerca de un minuto en despertar. El primer evento tras una pausa falla y entra por la cola de reintentos.
+- n8n tiene 512 MB en Render gratuito. Sin ajustes de memoria se reiniciaba con salida 134 y el editor mostraba `Cannot GET /` o `Connection lost`. Conviene usar una sola pestaña del editor.
 - Los reintentos de la tienda necesitan que algo la active: una visita a la tienda o el flujo programado de n8n, que solo corre con n8n despierto.
 - Si el segundo sistema no responde a un cambio hecho en el back-office, hay que pulsar «Reintentar» en el panel.
 - Una propuesta aprobada desde el panel web guarda la decisión, pero solo la aprobación por Telegram envía la respuesta al cliente.
