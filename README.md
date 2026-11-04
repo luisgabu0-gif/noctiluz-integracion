@@ -102,6 +102,7 @@ Con los flujos publicados:
 
 ## Limitaciones conocidas
 
+- Eliminar un pedido en el back-office no lo borra de la tienda, y un pedido con incidencias no se puede eliminar. El borrado queda en Ejecuciones. Si la tienda envía después un cambio de ese pedido, el evento fallará porque ya no existe en el back-office.
 - Render gratuito duerme los servicios tras 15 minutos sin tráfico y tardan cerca de un minuto en despertar. El primer evento tras una pausa falla y entra por la cola de reintentos.
 - n8n tiene 512 MB en Render gratuito. Sin ajustes de memoria se reiniciaba con salida 134 y el editor mostraba `Cannot GET /` o `Connection lost`. Conviene usar una sola pestaña del editor.
 - Los reintentos de la tienda necesitan que algo la active: una visita a la tienda o el flujo programado de n8n, que solo corre con n8n despierto.

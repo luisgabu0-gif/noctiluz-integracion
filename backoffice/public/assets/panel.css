@@ -52,6 +52,7 @@ th { color: var(--suave); font-weight: 600; }
 .en-linea { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 input, select { background: #0b1020; color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 8px 10px; font: inherit; }
 button { background: var(--acento); color: #04201f; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+button.peligro { background: transparent; color: var(--alerta); border: 1px solid var(--alerta); padding: 4px 10px; }
 button.secundario { background: transparent; color: var(--texto); border: 1px solid var(--borde); }
 
 .aviso { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--acento); background: #3fd0c91a; }

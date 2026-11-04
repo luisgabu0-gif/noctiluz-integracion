@@ -89,7 +89,7 @@ final class Panel
 
     public static function pie(): void
     {
-        echo '</main><footer class="pie">Prototipo académico sin actividad comercial real · back-office independiente de la tienda · datos de prueba ficticios · Tarea 2 SIE (UCAM)</footer></body></html>';
+        echo '</main><footer class="pie">Prototipo académico sin actividad comercial real · back-office independiente de la tienda · datos de prueba ficticios</footer></body></html>';
     }
 }
 

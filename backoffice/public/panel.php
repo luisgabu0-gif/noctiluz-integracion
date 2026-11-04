@@ -22,6 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ? Panel::aviso("Estado cambiado y sincronizado con la tienda ({$r['codigo']}).")
                     : Panel::aviso("Estado cambiado aquí, pero la tienda aún no lo tiene: {$r['error']}", 'error');
                 break;
+            case 'eliminar_pedido':
+                $codigo = (string) ($_POST['codigo'] ?? '');
+                Integracion::eliminarPedido($codigo, $actor);
+                Panel::aviso("Pedido {$codigo} eliminado del back-office. En la tienda sigue existiendo.");
+                break;
             case 'reintentar':
                 $r = Sincronizacion::enviar((int) ($_POST['id'] ?? 0), 'Reintento manual', $actor);
                 $r['sincronizado'] ? Panel::aviso('Sincronización completada.') : Panel::aviso('Sigue fallando: ' . $r['error'], 'error');
@@ -160,12 +165,13 @@ if ($vista === 'pedidos') {
       </section>
     <?php endif; ?>
     <section class="tarjeta"><div class="tabla-scroll"><table>
-      <thead><tr><th>Código</th><th>Cliente</th><th>Estado</th><th class="num">Uds.</th><th class="num">Total</th><th>Recibido</th></tr></thead><tbody>
+      <thead><tr><th>Código</th><th>Cliente</th><th>Estado</th><th class="num">Uds.</th><th class="num">Total</th><th>Recibido</th><th></th></tr></thead><tbody>
       <?php foreach ($filas as $f): ?>
         <tr><td><a href="panel.php?vista=pedido&codigo=<?= urlencode($f['codigo']) ?>"><?= e($f['codigo']) ?></a></td><td><?= e($f['nombre']) ?></td>
-          <td><?= etiquetaEstado($f['estado']) ?></td><td class="num"><?= (int) $f['unidades'] ?></td><td class="num"><?= eur($f['total']) ?></td><td><?= fecha($f['recibido_en']) ?></td></tr>
+          <td><?= etiquetaEstado($f['estado']) ?></td><td class="num"><?= (int) $f['unidades'] ?></td><td class="num"><?= eur($f['total']) ?></td><td><?= fecha($f['recibido_en']) ?></td>
+          <td><form method="post" onsubmit="return confirm('¿Eliminar este pedido del back-office? No se puede deshacer. En la tienda seguirá existiendo.');"><?= Panel::csrf() ?><input type="hidden" name="accion" value="eliminar_pedido"><input type="hidden" name="codigo" value="<?= e($f['codigo']) ?>"><input type="hidden" name="volver" value="panel.php?vista=pedidos"><button class="peligro" aria-label="Eliminar pedido <?= e($f['codigo']) ?>">Eliminar</button></form></td></tr>
       <?php endforeach; ?>
-      <?php if (!$filas): ?><tr><td colspan="6" class="suave">Aún no ha llegado ningún pedido. Haz uno en noctiluz.onl.</td></tr><?php endif; ?>
+      <?php if (!$filas): ?><tr><td colspan="7" class="suave">Aún no ha llegado ningún pedido. Haz uno en noctiluz.onl.</td></tr><?php endif; ?>
     </tbody></table></div></section>
     <?php
     Panel::pie();
