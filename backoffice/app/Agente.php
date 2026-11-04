@@ -46,16 +46,24 @@ final class Agente
         if ($respuesta !== null && (!is_string($respuesta) || mb_strlen($respuesta) > 1000)) {
             $errores[] = 'respuesta_cliente (texto de hasta 1000 caracteres o null)';
         }
+        $riesgos = is_string($p['riesgos'] ?? null) ? trim($p['riesgos']) : '';
+        if ($riesgos === '' || mb_strlen($riesgos) > 400) {
+            $errores[] = 'riesgos (texto de 1 a 400 caracteres)';
+        }
+        $consultados = $p['datos_consultados'] ?? null;
+        if (!is_array($consultados)) {
+            $errores[] = 'datos_consultados (lista de herramientas usadas)';
+        }
         if ($errores) {
             throw new ErrorNegocio('Salida del agente no válida: ' . implode(', ', $errores) . '.', 422, 'validacion');
         }
         // Aunque el modelo diga lo contrario, aquí siempre se exige aprobación humana.
         $id = Db::insertar(
             'INSERT INTO propuestas_agente (incidencia_id, resumen, clasificacion, prioridad, accion_propuesta, respuesta_cliente,
-                                            justificacion, confianza, requiere_aprobacion, estado, modelo, creado_en)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?, ?)',
+                                            justificacion, riesgos, datos_consultados, confianza, requiere_aprobacion, estado, modelo, creado_en)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?, ?)',
             [$i['id'], $resumen, $p['clasificacion'], $p['prioridad'], $p['accion_propuesta'], $respuesta ? trim($respuesta) : null,
-             $justificacion, round((float) $confianza, 2), 'pendiente', mb_substr((string) ($e['modelo'] ?? ''), 0, 60) ?: null, ahora()]
+             $justificacion, $riesgos, mb_substr((string) json_encode($consultados, JSON_UNESCAPED_UNICODE), 0, 4000), round((float) $confianza, 2), 'pendiente', mb_substr((string) ($e['modelo'] ?? ''), 0, 60) ?: null, ahora()]
         );
         return ['resultado' => 'ok', 'propuesta' => self::ver($id)];
     }
@@ -118,11 +126,13 @@ final class Agente
                 Db::ejecutar("UPDATE incidencias SET estado = 'en_curso', prioridad = ? WHERE id = ?", [$p['prioridad'], $incId]);
         }
         $p = self::ver($id);
+        $hayRespuesta = $p['accion_propuesta'] !== 'escalar' && $p['respuesta_cliente'] !== null;
         return [
             'resultado'         => 'ok',
             'propuesta'         => $p,
             'sincronizacion'    => $sync,
-            'enviar_cliente'    => $p['accion_propuesta'] !== 'escalar' && $p['respuesta_cliente'] !== null && $p['telegram_chat_id'] !== null,
+            'responder_tienda'  => $hayRespuesta,
+            'enviar_cliente'    => $hayRespuesta && $p['telegram_chat_id'] !== null,
             'telegram_chat_id'  => $p['telegram_chat_id'],
             'respuesta_cliente' => $p['respuesta_cliente'],
         ];
@@ -131,8 +141,8 @@ final class Agente
     public static function listar(): array
     {
         return Db::todos(
-            'SELECT a.id, a.resumen, a.clasificacion, a.prioridad, a.accion_propuesta, a.confianza, a.estado, a.decidido_por,
-                    a.decidido_en, a.creado_en, i.codigo AS incidencia
+            'SELECT a.id, a.resumen, a.clasificacion, a.prioridad, a.accion_propuesta, a.respuesta_cliente, a.justificacion, a.riesgos,
+                    a.datos_consultados, a.confianza, a.estado, a.decidido_por, a.decidido_en, a.creado_en, i.codigo AS incidencia
                FROM propuestas_agente a JOIN incidencias i ON i.id = a.incidencia_id ORDER BY a.id DESC LIMIT 100'
         );
     }

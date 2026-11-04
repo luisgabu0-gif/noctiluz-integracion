@@ -7,13 +7,19 @@ declare(strict_types=1);
  */
 final class Metricas
 {
+    public const SLA_HORAS = 48;
+
     public static function calcular(int $dias = 30): array
     {
         $desde = date('Y-m-d H:i:s', strtotime("-{$dias} days"));
 
-        // 1. Pedidos integrados y facturación
-        $ped = Db::uno('SELECT COUNT(*) AS n, COALESCE(SUM(total), 0) AS importe FROM pedidos WHERE recibido_en >= ?', [$desde]);
-        $pedidos = (int) $ped['n'];
+        // 1. Pedidos integrados; el importe y el ticket medio cuentan solo lo pagado (un pedido creado aún no es una venta)
+        $pedidos = (int) Db::valor('SELECT COUNT(*) FROM pedidos WHERE recibido_en >= ?', [$desde]);
+        $ped = Db::uno(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(total), 0) AS importe FROM pedidos WHERE recibido_en >= ? AND estado NOT IN ('creado', 'cancelado')",
+            [$desde]
+        );
+        $pagados = (int) $ped['n'];
 
         // 2. Tasa de éxito de la integración (ok / ok+error; los duplicados no cuentan)
         $ej = Db::uno(
@@ -41,6 +47,17 @@ final class Metricas
             $res[] = max(0, strtotime($f['resuelta_en']) - strtotime($f['creado_en']));
         }
 
+        // Primera respuesta: la primera propuesta aprobada por una persona. SLA: resueltas en 48 h o menos.
+        $primera = [];
+        foreach (Db::todos(
+            "SELECT i.creado_en, MIN(a.decidido_en) AS respondida FROM incidencias i JOIN propuestas_agente a ON a.incidencia_id = i.id
+              WHERE a.estado = 'aprobada' AND i.creado_en >= ? GROUP BY i.id, i.creado_en",
+            [$desde]
+        ) as $f) {
+            $primera[] = max(0, strtotime($f['respondida']) - strtotime($f['creado_en']));
+        }
+        $enPlazo = count(array_filter($res, fn ($s) => $s <= self::SLA_HORAS * 3600));
+
         // 5. Agente: propuestas y % aprobadas por una persona
         $ag = Db::uno(
             "SELECT COUNT(*) AS n,
@@ -58,7 +75,8 @@ final class Metricas
             'dias'                    => $dias,
             'pedidos_integrados'      => $pedidos,
             'importe_integrado'       => round((float) $ped['importe'], 2),
-            'ticket_medio'            => $pedidos ? round((float) $ped['importe'] / $pedidos, 2) : null,
+            'pedidos_pagados'         => $pagados,
+            'ticket_medio'            => $pagados ? round((float) $ped['importe'] / $pagados, 2) : null,
             'ejecuciones_ok'          => $ok,
             'ejecuciones_error'       => $err,
             'duplicados_evitados'     => (int) $ej['duplicado'],
@@ -67,10 +85,21 @@ final class Metricas
             'incidencias_abiertas'    => $abiertas,
             'incidencias_por_100'     => $pedidos ? round(100 * $incPeriodo / $pedidos, 1) : null,
             'resolucion_media_h'      => $res ? round(array_sum($res) / count($res) / 3600, 1) : null,
+            'primera_respuesta_h'     => $primera ? round(array_sum($primera) / count($primera) / 3600, 1) : null,
+            'cumplimiento_sla'        => $res ? round(100 * $enPlazo / count($res), 1) : null,
             'propuestas_ia'           => (int) $ag['n'],
+            'propuestas_pendientes'   => (int) $ag['n'] - $decididas,
             'aprobacion_ia'           => $decididas ? round(100 * (int) $ag['aprobadas'] / $decididas, 1) : null,
             'sincronizaciones_pend'   => $syncPend,
-            'serie_diaria'            => self::serieDiaria(14),
+            'serie_diaria'            => self::serieDiaria(30),
+            'pedidos_pendientes'      => (int) Db::valor("SELECT COUNT(*) FROM pedidos WHERE estado IN ('pagado', 'en_preparacion')"),
+            'productos_top'           => Db::todos(
+                "SELECT l.sku, MAX(l.descripcion) AS descripcion, SUM(l.cantidad) AS unidades
+                   FROM pedido_lineas l JOIN pedidos p ON p.id = l.pedido_id
+                  WHERE p.recibido_en >= ? AND p.estado NOT IN ('creado', 'cancelado')
+                  GROUP BY l.sku ORDER BY unidades DESC LIMIT 5",
+                [$desde]
+            ),
             'errores_por_tipo'        => Db::todos(
                 "SELECT COALESCE(tipo_error, 'desconocido') AS tipo, COUNT(*) AS n FROM ejecuciones
                   WHERE resultado = 'error' AND creado_en >= ? GROUP BY COALESCE(tipo_error, 'desconocido') ORDER BY n DESC",
@@ -78,6 +107,21 @@ final class Metricas
             ),
             'pedidos_por_estado'      => Db::todos('SELECT estado, COUNT(*) AS n FROM pedidos GROUP BY estado ORDER BY n DESC'),
         ];
+    }
+
+    /**
+     * El embudo y la cola de envíos viven en la tienda: se preguntan en cada visita, con datos reales.
+     * Si la tienda no responde, el panel lo dice en lugar de inventar cifras.
+     */
+    public static function tienda(): ?array
+    {
+        $url = Config::get('TIENDA_URL');
+        $token = Config::get('TIENDA_API_TOKEN');
+        if ($url === '' || $token === '') {
+            return null;
+        }
+        [$http, $datos] = Http::postJson(rtrim($url, '/') . '/api/integracion/metricas.php', [], ['Authorization: Bearer ' . $token], 5);
+        return $http === 200 ? $datos : null;
     }
 
     /** Pedidos integrados y errores por día (agrupado en PHP para que valga igual en PostgreSQL y SQLite). */

@@ -56,6 +56,7 @@ $vista = $_GET['vista'] ?? 'resumen';
 if ($vista === 'resumen') {
     $dias = in_array((int) ($_GET['dias'] ?? 30), [7, 30, 90], true) ? (int) $_GET['dias'] : 30;
     $m = Metricas::calcular($dias);
+    $tienda = Metricas::tienda();
     Panel::cabecera('Cuadro de mando', 'resumen');
     $pct = fn ($v) => $v === null ? '—' : number_format((float) $v, 1, ',', '.') . ' %';
     ?>
@@ -68,20 +69,21 @@ if ($vista === 'resumen') {
       </nav>
     </div>
     <section class="kpis">
-      <article class="kpi"><h2>Pedidos integrados</h2><p class="cifra"><?= $m['pedidos_integrados'] ?></p><p class="suave"><?= eur($m['importe_integrado']) ?> · ticket medio <?= eur($m['ticket_medio']) ?></p></article>
+      <article class="kpi"><h2>Pedidos integrados</h2><p class="cifra"><?= $m['pedidos_integrados'] ?></p><p class="suave"><?= $m['pedidos_pagados'] ?> pagados · <?= eur($m['importe_integrado']) ?> · ticket medio <?= eur($m['ticket_medio']) ?></p></article>
       <article class="kpi"><h2>Éxito de la integración</h2><p class="cifra"><?= $pct($m['tasa_exito']) ?></p><p class="suave"><?= $m['ejecuciones_ok'] ?> ok · <?= $m['ejecuciones_error'] ?> con error · <?= $m['duplicados_evitados'] ?> duplicados evitados</p></article>
       <article class="kpi"><h2>Latencia tienda → back-office</h2><p class="cifra"><?= $m['latencia_mediana_s'] === null ? '—' : $m['latencia_mediana_s'] . ' s' ?></p><p class="suave">mediana, incluye reintentos</p></article>
       <article class="kpi"><h2>Incidencias abiertas</h2><p class="cifra"><?= $m['incidencias_abiertas'] ?></p><p class="suave"><?= $m['incidencias_por_100'] === null ? '—' : number_format($m['incidencias_por_100'], 1, ',', '.') ?> por cada 100 pedidos</p></article>
-      <article class="kpi"><h2>Tiempo medio de resolución</h2><p class="cifra"><?= $m['resolucion_media_h'] === null ? '—' : number_format($m['resolucion_media_h'], 1, ',', '.') . ' h' ?></p><p class="suave">de las incidencias resueltas</p></article>
-      <article class="kpi"><h2>Propuestas del agente aprobadas</h2><p class="cifra"><?= $pct($m['aprobacion_ia']) ?></p><p class="suave"><?= $m['propuestas_ia'] ?> propuestas · todas con revisión humana</p></article>
+      <article class="kpi"><h2>Tiempo medio de resolución</h2><p class="cifra"><?= $m['resolucion_media_h'] === null ? '—' : number_format($m['resolucion_media_h'], 1, ',', '.') . ' h' ?></p><p class="suave">primera respuesta: <?= $m['primera_respuesta_h'] === null ? '—' : number_format($m['primera_respuesta_h'], 1, ',', '.') . ' h' ?> · en plazo de <?= Metricas::SLA_HORAS ?> h: <?= $pct($m['cumplimiento_sla']) ?></p></article>
+      <article class="kpi"><h2>Propuestas del agente aprobadas</h2><p class="cifra"><?= $pct($m['aprobacion_ia']) ?></p><p class="suave"><?= $m['propuestas_ia'] ?> propuestas · <?= $m['propuestas_pendientes'] ?> pendientes · todas con revisión humana</p></article>
       <article class="kpi<?= $m['sincronizaciones_pend'] ? ' kpi-alerta' : '' ?>"><h2>Sincronizaciones pendientes</h2><p class="cifra"><?= $m['sincronizaciones_pend'] ?></p><p class="suave">cambios del back-office aún no confirmados por la tienda</p></article>
     </section>
     <section class="tarjeta">
-      <h2>Pedidos integrados y errores por día (últimos 14 días)</h2>
+      <h2>Pedidos integrados y errores por día (últimos 30 días)</h2>
       <div class="grafico"><canvas id="grafico-diario" aria-label="Gráfico de pedidos integrados y errores por día" role="img"></canvas></div>
     </section>
     <div class="dos-columnas">
       <section class="tarjeta"><h2>Pedidos por estado</h2>
+        <p class="suave"><?= $m['pedidos_pendientes'] ?> pendientes (pagados o en preparación)</p>
         <table><thead><tr><th>Estado</th><th class="num">Pedidos</th></tr></thead><tbody>
         <?php foreach ($m['pedidos_por_estado'] as $f): ?><tr><td><?= etiquetaEstado($f['estado']) ?></td><td class="num"><?= (int) $f['n'] ?></td></tr><?php endforeach; ?>
         <?php if (!$m['pedidos_por_estado']): ?><tr><td colspan="2" class="suave">Aún no hay pedidos.</td></tr><?php endif; ?>
@@ -92,6 +94,23 @@ if ($vista === 'resumen') {
         <?php foreach ($m['errores_por_tipo'] as $f): ?><tr><td><?= e($f['tipo']) ?></td><td class="num"><?= (int) $f['n'] ?></td></tr><?php endforeach; ?>
         <?php if (!$m['errores_por_tipo']): ?><tr><td colspan="2" class="suave">Sin errores en el periodo.</td></tr><?php endif; ?>
         </tbody></table>
+      </section>
+    </div>
+    <div class="dos-columnas">
+      <section class="tarjeta"><h2>Productos más solicitados (<?= $dias ?> días)</h2>
+        <table><thead><tr><th>Producto</th><th class="num">Unidades</th></tr></thead><tbody>
+        <?php foreach ($m['productos_top'] as $f): ?><tr><td><?= e($f['descripcion']) ?><br><small class="suave"><?= e($f['sku']) ?></small></td><td class="num"><?= (int) $f['unidades'] ?></td></tr><?php endforeach; ?>
+        <?php if (!$m['productos_top']): ?><tr><td colspan="2" class="suave">Aún no hay pedidos pagados.</td></tr><?php endif; ?>
+        </tbody></table>
+      </section>
+      <section class="tarjeta"><h2>Embudo de conversión de la tienda</h2>
+        <?php if ($tienda === null): ?><p class="suave">La tienda no ha respondido: revisa TIENDA_URL y TIENDA_API_TOKEN, o recarga en un momento.</p>
+        <?php else: $base = max(1, (int) ($tienda['embudo'][0]['sesiones'] ?? 0)); ?>
+          <table><thead><tr><th>Paso</th><th class="num">Sesiones</th><th class="num">%</th></tr></thead><tbody>
+          <?php foreach ($tienda['embudo'] as $f): ?><tr><td><?= e($f['etiqueta']) ?></td><td class="num"><?= (int) $f['sesiones'] ?></td><td class="num"><?= $pct(100 * (int) $f['sesiones'] / $base) ?></td></tr><?php endforeach; ?>
+          </tbody></table>
+          <p class="suave">Cola de envíos a n8n: <?= (int) $tienda['cola']['enviado'] ?> enviados · <?= (int) $tienda['cola']['pendiente'] ?> pendientes · <?= (int) $tienda['cola']['fallido'] ?> fallidos</p>
+        <?php endif; ?>
       </section>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -236,7 +255,13 @@ if ($vista === 'agente') {
     <section class="tarjeta"><div class="tabla-scroll"><table>
       <thead><tr><th>#</th><th>Incidencia</th><th>Resumen</th><th>Clasif.</th><th>Prioridad</th><th>Acción propuesta</th><th class="num">Confianza</th><th>Estado</th></tr></thead><tbody>
       <?php foreach ($filas as $f): ?>
-        <tr><td><?= (int) $f['id'] ?></td><td><?= e($f['incidencia']) ?></td><td><?= e($f['resumen']) ?></td><td><?= e($f['clasificacion']) ?></td>
+        <tr><td><?= (int) $f['id'] ?></td><td><?= e($f['incidencia']) ?></td>
+          <td><?= e($f['resumen']) ?><details><summary class="suave">Detalle</summary>
+            <p><strong>Justificación:</strong> <?= e($f['justificacion']) ?></p>
+            <p><strong>Riesgos:</strong> <?= e($f['riesgos'] ?? '—') ?></p>
+            <p><strong>Respuesta propuesta:</strong> <?= e($f['respuesta_cliente'] ?? '—') ?></p>
+            <p><strong>Datos consultados:</strong> <code><?= e($f['datos_consultados'] ?? '—') ?></code></p>
+          </details></td><td><?= e($f['clasificacion']) ?></td>
           <td><span class="prioridad prioridad-<?= e($f['prioridad']) ?>"><?= e($f['prioridad']) ?></span></td>
           <td><?= e(Reglas::ACCIONES_AGENTE[$f['accion_propuesta']] ?? $f['accion_propuesta']) ?></td><td class="num"><?= number_format((float) $f['confianza'] * 100, 0) ?> %</td>
           <td><?php if ($f['estado'] === 'pendiente'): ?>

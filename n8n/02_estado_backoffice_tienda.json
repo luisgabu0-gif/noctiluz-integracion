@@ -1,0 +1,301 @@
+{
+  "name": "NOCTILUZ · 2 Estado back-office → tienda",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "estado-backoffice",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "12607e34-8bba-4a63-bcb8-b0f7879f18bb",
+      "name": "Cambio en el back-office",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "estado-backoffice",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Webhook back-office"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const e = $input.first().json.body ?? {};\nconst d = e.data ?? {};\nconst errores = [];\nif (e.event !== 'backoffice.status_change_requested') errores.push('evento desconocido');\nif (!/^NCZ-\\d{6}-[A-Z0-9]{6}$/.test(d.codigo ?? '')) errores.push('codigo');\nif (typeof d.estado !== 'string' || !d.estado) errores.push('estado');\nreturn [{ json: { valido: errores.length === 0, errores, event_id: e.event_id ?? null, envio: { version: 1, codigo: d.codigo, estado: d.estado, motivo: d.motivo ?? null, origen: 'backoffice' } } }];"
+      },
+      "id": "0cfebe95-01fa-4e95-a8a3-97c5d57bd470",
+      "name": "Validar cambio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cadf0de5-d343-43c4-90b9-f8184a246d06",
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "db1023a8-acf1-4f3d-926c-d98d90f8ced8",
+      "name": "¿Cambio válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.noctiluz.onl/api/integracion/pedidos.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.envio) }}"
+      },
+      "id": "08db2dc7-60af-4c3f-9c3d-9e414c321a6e",
+      "name": "Tienda: aplicar estado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Tienda"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const v = $('Validar cambio').first().json;\nconst r = $input.first().json;\nconst c = r.statusCode;\nconst cuerpo = typeof r.body === 'object' && r.body !== null ? r.body : {};\nconst ok = c >= 200 && c < 300 && cuerpo.ok === true;\nconst error = ok ? null : (cuerpo.error ?? r.error?.message ?? 'La tienda no responde.');\nconst transitorio = !c || c >= 500;\nreturn [{ json: {\n  http: 200,\n  respuesta: ok ? { ok: true, estado: cuerpo.estado, sin_cambios: cuerpo.sin_cambios === true } : { ok: false, error },\n  registro: {\n    flujo: 'n8n-estado-backoffice', escenario: 'estado', event_id: (v.event_id ?? '').slice(0, 40), resultado: ok ? 'ok' : 'error',\n    paso_fallido: ok ? null : 'Tienda: aplicar estado', tipo_error: ok ? null : (transitorio ? 'transitorio' : 'negocio'), causa: error, datos_entrada: v.envio,\n  },\n} }];"
+      },
+      "id": "c1e5a749-30a5-4cb0-867e-c8bde68d6dce",
+      "name": "Interpretar tienda",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.respuesta) }}",
+        "options": {
+          "responseCode": "={{ $json.http }}"
+        }
+      },
+      "id": "24fc3d75-43c5-4a4e-ac31-a58742246035",
+      "name": "Responder al back-office",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://noctiluz-backoffice.onrender.com/api/ejecuciones.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($(\"Interpretar tienda\").first().json.registro) }}"
+      },
+      "id": "f7bd8f67-8e90-4dd7-bd99-ed3f75f8d0c1",
+      "name": "Registrar resultado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        -100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Back-office"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 1,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { http: 200, respuesta: { ok: false, error: 'Cambio no válido: ' + $input.first().json.errores.join(', ') } } }];"
+      },
+      "id": "218597f5-8351-4ffb-8854-266d7a13eca8",
+      "name": "Preparar rechazo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.respuesta) }}",
+        "options": {
+          "responseCode": "={{ $json.http }}"
+        }
+      },
+      "id": "30fc3f3d-d166-40bf-b447-75001e10688e",
+      "name": "Responder rechazo",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Cambio en el back-office": {
+      "main": [
+        [
+          {
+            "node": "Validar cambio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar cambio": {
+      "main": [
+        [
+          {
+            "node": "¿Cambio válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Cambio válido?": {
+      "main": [
+        [
+          {
+            "node": "Tienda: aplicar estado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar rechazo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tienda: aplicar estado": {
+      "main": [
+        [
+          {
+            "node": "Interpretar tienda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar tienda": {
+      "main": [
+        [
+          {
+            "node": "Responder al back-office",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder al back-office": {
+      "main": [
+        [
+          {
+            "node": "Registrar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar rechazo": {
+      "main": [
+        [
+          {
+            "node": "Responder rechazo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

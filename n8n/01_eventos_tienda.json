@@ -1,0 +1,867 @@
+{
+  "name": "NOCTILUZ · 1 Eventos de la tienda",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "noctiluz-eventos",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8775660d-4669-430f-a893-ed8dec2729ed",
+      "name": "Evento de la tienda",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "noctiluz-eventos",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Tienda"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Contrato de integración, apartado 7. Valida el mensaje y lo traduce al formato del back-office.\nconst e = $input.first().json.body ?? {};\nconst campos = {};\nconst TIPOS = ['order.created', 'payment.simulated', 'order.status_changed', 'support.requested'];\nconst ESTADOS = ['creado', 'pagado', 'en_preparacion', 'enviado', 'entregado', 'incidencia', 'cancelado'];\nconst MOTIVOS = ['pedido', 'envio', 'producto', 'devolucion', 'otro'];\nconst CODIGO = /^NCZ-\\d{6}-[A-Z0-9]{6}$/;\nconst EMAIL = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst num = (v) => typeof v === 'number' && Number.isFinite(v);\nconst iguales = (a, b) => Math.abs(a - b) < 0.011;\n\nif (e.version !== 1) campos.version = 'Versión no soportada: se espera 1.';\nif (typeof e.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(e.id)) campos.id = 'Falta el id del evento o no es un UUID.';\nif (!TIPOS.includes(e.tipo)) campos.tipo = 'Tipo de evento no admitido.';\nif (typeof e.ocurrido_en !== 'string' || Number.isNaN(Date.parse(e.ocurrido_en))) campos.ocurrido_en = 'Falta la fecha o no es ISO 8601.';\nif (typeof e.datos !== 'object' || e.datos === null) campos.datos = 'Falta el objeto datos.';\n\nconst p = e.pedido;\nif (['order.created', 'order.status_changed', 'payment.simulated'].includes(e.tipo)) {\n  if (typeof p !== 'object' || p === null) {\n    campos.pedido = 'Falta la foto del pedido.';\n  } else {\n    if (!CODIGO.test(p.codigo ?? '')) campos['pedido.codigo'] = 'El código no tiene el formato NCZ-AAMMDD-XXXXXX.';\n    if (!ESTADOS.includes(p.estado)) campos['pedido.estado'] = 'Estado desconocido.';\n    if (!EMAIL.test(p.cliente?.email ?? '')) campos['pedido.cliente.email'] = 'Email no válido.';\n    if (typeof p.cliente?.nombre !== 'string' || p.cliente.nombre.trim().length < 3) campos['pedido.cliente.nombre'] = 'Falta el nombre.';\n    if (!Array.isArray(p.lineas) || p.lineas.length === 0) {\n      campos.lineas = 'Debe haber al menos una línea.';\n    } else {\n      p.lineas.forEach((l, i) => {\n        if (!Number.isInteger(l.cantidad) || l.cantidad < 1 || l.cantidad > 9) campos['lineas.' + i + '.cantidad'] = 'La cantidad debe ser de 1 a 9.';\n        if (!num(l.importe) || !num(l.precio_unitario) || !iguales(l.importe, l.cantidad * l.precio_unitario)) campos['lineas.' + i + '.importe'] = 'El importe no es cantidad × precio.';\n      });\n    }\n    const t = p.totales ?? {};\n    if (![t.subtotal, t.descuento, t.envio, t.base_imponible, t.iva, t.total].every(num)) {\n      campos.totales = 'Faltan importes.';\n    } else if (!iguales(t.total, t.subtotal - t.descuento + t.envio) || !iguales(t.total, t.base_imponible + t.iva)) {\n      campos.totales = 'Los totales no cuadran.';\n    }\n  }\n}\nconst inc = e.incidencia;\nif (e.tipo === 'support.requested') {\n  if (typeof inc !== 'object' || inc === null) {\n    campos.incidencia = 'Falta la foto de la incidencia.';\n  } else {\n    if (typeof inc.codigo !== 'string' || !inc.codigo) campos['incidencia.codigo'] = 'Falta el código.';\n    if (!MOTIVOS.includes(inc.motivo)) campos['incidencia.motivo'] = 'Motivo desconocido.';\n    if (typeof inc.mensaje !== 'string' || !inc.mensaje.trim()) campos['incidencia.mensaje'] = 'Falta el mensaje.';\n    if (!EMAIL.test(inc.cliente?.email ?? '')) campos['incidencia.cliente.email'] = 'Email no válido.';\n  }\n}\n\nconst valido = Object.keys(campos).length === 0;\nconst escenarios = { 'order.created': 'pedido', 'order.status_changed': 'estado', 'support.requested': 'incidencia', 'payment.simulated': 'pedido' };\nconst salida = { valido, campos, tipo: e.tipo ?? 'desconocido', id: typeof e.id === 'string' ? e.id : null, escenario: escenarios[e.tipo] ?? 'otro', original: e };\n\nif (valido) {\n  const sobre = { event_id: e.id, event: e.tipo, occurred_at: e.ocurrido_en, source: 'tienda-noctiluz' };\n  if (e.tipo === 'order.created') {\n    sobre.data = {\n      codigo: p.codigo, estado: p.estado, total: p.totales.total, metodo_envio: p.envio?.metodo ?? null, cupon: e.datos.cupon ?? null,\n      cliente: { nombre: p.cliente.nombre.trim(), email: p.cliente.email.trim().toLowerCase() },\n      lineas: p.lineas.map((l) => ({ sku: l.sku, descripcion: l.descripcion, cantidad: l.cantidad, importe: l.importe })),\n    };\n  } else if (e.tipo === 'order.status_changed') {\n    sobre.data = { codigo: p.codigo, de: e.datos.de, a: e.datos.a, actor: e.datos.actor, motivo: e.datos.motivo };\n  } else if (e.tipo === 'support.requested') {\n    sobre.data = {\n      codigo: inc.codigo, motivo: inc.motivo, mensaje: inc.mensaje.trim(), pedido: inc.pedido_codigo ?? null,\n      cliente: { nombre: inc.cliente.nombre, email: inc.cliente.email.trim().toLowerCase() },\n    };\n  } else {\n    // El cambio a «pagado» llega en su propio order.status_changed; el pago solo se deja registrado.\n    sobre.data = {\n      flujo: 'n8n-eventos-tienda', escenario: 'pedido', event_id: e.id, resultado: 'ok',\n      datos_entrada: { pedido: p.codigo, pago: e.datos.resultado, pasarela: e.datos.pasarela ?? 'tarjeta_simulada' },\n    };\n  }\n  salida.sobre = sobre;\n}\nreturn [{ json: salida }];"
+      },
+      "id": "21556acb-c565-4ee8-84e9-06cfd398e0ed",
+      "name": "Validar y normalizar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c10afbd1-f599-466f-bae0-f9d34695fe75",
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9f7eae0f-b3a3-4d65-ac0d-0edb4002e32b",
+      "name": "¿Mensaje válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "903df313-0d64-49f9-b30f-09714781499c",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "order.created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "order.created"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c2af7500-3a05-4fb2-9f47-644bf4b3a199",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "order.status_changed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "order.status_changed"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "9ce3c48d-5529-41fe-8c54-81cd5f658cff",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "support.requested",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "support.requested"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b012b6c5-7dcd-451e-8280-cb6402137711",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "payment.simulated",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "payment.simulated"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9a2eba6a-5222-442a-9fd7-fff7adb304e3",
+      "name": "Según el evento",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        720,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://noctiluz-backoffice.onrender.com/api/pedidos.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.sobre) }}"
+      },
+      "id": "b62c3648-1395-49ee-a9e2-60e8de47cc44",
+      "name": "Back-office: crear pedido",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        -160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Back-office"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://noctiluz-backoffice.onrender.com/api/estados.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.sobre) }}"
+      },
+      "id": "b52a29df-622a-4416-ab0c-394ce2a8c57f",
+      "name": "Back-office: cambiar estado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Back-office"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://noctiluz-backoffice.onrender.com/api/incidencias.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.sobre) }}"
+      },
+      "id": "948a3b2b-f25a-44da-a2e0-ca8417397f89",
+      "name": "Back-office: crear incidencia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        160
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Back-office"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://noctiluz-backoffice.onrender.com/api/ejecuciones.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.sobre.data) }}"
+      },
+      "id": "4962ff1b-60dc-4367-be6e-b262cd8defb7",
+      "name": "Back-office: registrar pago",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        320
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Back-office"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Apartado 3 del contrato: traduce lo que dijo el back-office a lo que espera la tienda.\nconst v = $('Validar y normalizar').first().json;\nconst r = $input.first().json;\nconst codigo = r.statusCode;\nconst cuerpo = typeof r.body === 'object' && r.body !== null ? r.body : {};\nconst entidades = { 'order.created': 'pedido', 'order.status_changed': 'pedido', 'support.requested': 'incidencia', 'payment.simulated': 'pago' };\nconst salida = { id: v.id, tipo: v.tipo, incidenciaNueva: false, incidencia: cuerpo.incidencia ?? null };\n\nif (codigo >= 200 && codigo < 300) {\n  const nuevo = codigo === 201;\n  salida.http = nuevo ? 201 : 200;\n  salida.fallo = false;\n  salida.respuesta = nuevo\n    ? { ok: true, id: v.id, entidad: entidades[v.tipo], referencia: cuerpo.codigo ?? cuerpo.incidencia?.codigo ?? null }\n    : { ok: true, id: v.id, duplicado: cuerpo.resultado === 'duplicado', resultado: cuerpo.resultado ?? 'ok' };\n  salida.incidenciaNueva = v.tipo === 'support.requested' && cuerpo.resultado === 'ok';\n} else if (codigo >= 400 && codigo < 500 && cuerpo.tipo_error !== 'transitorio' && codigo !== 401) {\n  // El mensaje está mal: repetirlo no lo arreglará.\n  salida.http = 422;\n  salida.fallo = true;\n  salida.respuesta = { error: cuerpo.error ?? 'El back-office rechazó el mensaje.', campos: {} };\n} else {\n  // Back-office dormido, caído o pedido que aún no ha llegado: la tienda reintentará.\n  salida.http = 503;\n  salida.fallo = true;\n  salida.respuesta = { error: cuerpo.error ?? r.error?.message ?? 'El back-office no responde.' };\n}\nreturn [{ json: salida }];"
+      },
+      "id": "b41308d9-c01f-4428-aef3-a768a716b4c6",
+      "name": "Interpretar respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.respuesta) }}",
+        "options": {
+          "responseCode": "={{ $json.http }}"
+        }
+      },
+      "id": "e4481bef-b8f3-4e15-a2fe-487d329234da",
+      "name": "Responder a la tienda",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1480,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "50004bad-5adb-450a-9bba-f7d213d40c41",
+              "leftValue": "={{ $(\"Interpretar respuesta\").first().json.incidenciaNueva }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c3704dd9-ea5d-4f45-8100-61b704aa4fe7",
+      "name": "¿Incidencia nueva?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://noctiluz-n8n.onrender.com/webhook/agente-incidencia",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ event_id: $(\"Interpretar respuesta\").first().json.id, incidencia: $(\"Interpretar respuesta\").first().json.incidencia }) }}"
+      },
+      "id": "f1006341-ba5f-4da7-99b1-44d8967cc3e7",
+      "name": "Lanzar agente IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1960,
+        -60
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Back-office"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 1,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b8d3813b-24ec-47c7-9e97-039419a19f4e",
+              "leftValue": "={{ $(\"Interpretar respuesta\").first().json.fallo }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "97387336-1169-4783-aab6-f7ed2db9fa8f",
+      "name": "¿Ha fallado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1960,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_SOPORTE }}",
+        "text": "={{ String(\"⚠️ Evento \" + $(\"Interpretar respuesta\").first().json.tipo + \" sin procesar (\" + $(\"Interpretar respuesta\").first().json.http + \"): \" + $(\"Interpretar respuesta\").first().json.respuesta.error).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "60530c88-9be6-49f3-977d-28d3caf8290a",
+      "name": "Avisar al equipo del fallo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        120
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://noctiluz-backoffice.onrender.com/api/ejecuciones.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ flujo: 'n8n-eventos-tienda', escenario: $json.escenario, event_id: $json.id, resultado: 'error', paso_fallido: 'n8n: validar payload', tipo_error: 'validacion', causa: Object.entries($json.campos).map(e => e.join(': ')).join(' | ').slice(0, 290), datos_entrada: $json.original }) }}"
+      },
+      "id": "c97bc32c-a4d6-4a63-883f-43fe576d7a75",
+      "name": "Back-office: registrar rechazo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Back-office"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const v = $('Validar y normalizar').first().json;\nreturn [{ json: { http: 422, respuesta: { error: 'Faltan campos o no cumplen las reglas.', campos: v.campos }, tipo: v.tipo, resumen: Object.keys(v.campos).join(', ') } }];"
+      },
+      "id": "2a89797d-5f1c-4144-b6bd-6f42e057778f",
+      "name": "Preparar rechazo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.respuesta) }}",
+        "options": {
+          "responseCode": "={{ $json.http }}"
+        }
+      },
+      "id": "f99528ab-9ac4-4ea4-beca-6852472b445d",
+      "name": "Responder rechazo",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1240,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_SOPORTE }}",
+        "text": "={{ String(\"⚠️ Evento rechazado por la validación (\" + $(\"Preparar rechazo\").first().json.tipo + \"): \" + $(\"Preparar rechazo\").first().json.resumen).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "641fa069-3b07-4a60-b93b-75604f2decb1",
+      "name": "Avisar del rechazo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1480,
+        500
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "6f2cee07-ebe4-46e1-b761-d6cbb123d324",
+      "name": "Cada 5 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.noctiluz.onl/api/integracion/cola.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"accion\":\"procesar\"}"
+      },
+      "id": "ce6dd56c-7885-496c-a6a8-aeacfac8d976",
+      "name": "Tienda: procesar cola",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Tienda"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 1,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Evento de la tienda": {
+      "main": [
+        [
+          {
+            "node": "Validar y normalizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar y normalizar": {
+      "main": [
+        [
+          {
+            "node": "¿Mensaje válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Mensaje válido?": {
+      "main": [
+        [
+          {
+            "node": "Según el evento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Back-office: registrar rechazo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Según el evento": {
+      "main": [
+        [
+          {
+            "node": "Back-office: crear pedido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Back-office: cambiar estado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Back-office: crear incidencia",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Back-office: registrar pago",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Back-office: crear pedido": {
+      "main": [
+        [
+          {
+            "node": "Interpretar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Back-office: cambiar estado": {
+      "main": [
+        [
+          {
+            "node": "Interpretar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Back-office: crear incidencia": {
+      "main": [
+        [
+          {
+            "node": "Interpretar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Back-office: registrar pago": {
+      "main": [
+        [
+          {
+            "node": "Interpretar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar respuesta": {
+      "main": [
+        [
+          {
+            "node": "Responder a la tienda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder a la tienda": {
+      "main": [
+        [
+          {
+            "node": "¿Incidencia nueva?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "¿Ha fallado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Incidencia nueva?": {
+      "main": [
+        [
+          {
+            "node": "Lanzar agente IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ha fallado?": {
+      "main": [
+        [
+          {
+            "node": "Avisar al equipo del fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Back-office: registrar rechazo": {
+      "main": [
+        [
+          {
+            "node": "Preparar rechazo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar rechazo": {
+      "main": [
+        [
+          {
+            "node": "Responder rechazo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder rechazo": {
+      "main": [
+        [
+          {
+            "node": "Avisar del rechazo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cada 5 minutos": {
+      "main": [
+        [
+          {
+            "node": "Tienda: procesar cola",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

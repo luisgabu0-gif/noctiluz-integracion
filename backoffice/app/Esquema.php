@@ -22,7 +22,21 @@ final class Esquema
                 Db::conexion()->exec($sentencia);
             }
         }
+        self::columnasNuevas();
         self::primerUsuario();
+    }
+
+    /** Columnas añadidas después del primer despliegue: la base de datos de Render ya existe y no se recrea. */
+    private static function columnasNuevas(): void
+    {
+        foreach (['riesgos' => 'VARCHAR(400) NULL', 'datos_consultados' => 'TEXT NULL'] as $columna => $tipo) {
+            $existe = Db::esSqlite()
+                ? Db::valor("SELECT COUNT(*) FROM pragma_table_info('propuestas_agente') WHERE name = ?", [$columna])
+                : Db::valor("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'backoffice' AND table_name = 'propuestas_agente' AND column_name = ?", [$columna]);
+            if ((int) $existe === 0) {
+                Db::conexion()->exec("ALTER TABLE propuestas_agente ADD COLUMN {$columna} {$tipo}");
+            }
+        }
     }
 
     private static function primerUsuario(): void

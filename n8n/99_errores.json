@@ -1,0 +1,130 @@
+{
+  "name": "NOCTILUZ · Errores",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "43bb86d0-a1b3-47f1-9cec-46aff8594dfb",
+      "name": "Fallo en un flujo",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const e = $input.first().json;\nconst flujo = e.workflow?.name ?? 'desconocido';\nconst paso = e.execution?.lastNodeExecuted ?? e.trigger?.error?.node?.name ?? null;\nconst causa = String(e.execution?.error?.message ?? e.trigger?.error?.message ?? 'Sin detalle').slice(0, 290);\nreturn [{ json: { flujo: flujo.slice(0, 60), escenario: 'otro', resultado: 'error', paso_fallido: paso, tipo_error: 'desconocido', causa } }];"
+      },
+      "id": "53300797-0151-44e9-94cf-7179d07498ab",
+      "name": "Preparar registro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://noctiluz-backoffice.onrender.com/api/ejecuciones.php",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "3bb4d6d1-944b-416a-bd15-f30ce010a714",
+      "name": "Back-office: registrar error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "NOCTILUZ Back-office"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 1,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_SOPORTE }}",
+        "text": "={{ String(\"🚨 Fallo en «\" + $(\"Preparar registro\").first().json.flujo + \"», paso «\" + $(\"Preparar registro\").first().json.paso_fallido + \"»: \" + $(\"Preparar registro\").first().json.causa).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "7db7e29d-2578-49a9-bba6-f0ab05cde04f",
+      "name": "Avisar al equipo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        0
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Fallo en un flujo": {
+      "main": [
+        [
+          {
+            "node": "Preparar registro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar registro": {
+      "main": [
+        [
+          {
+            "node": "Back-office: registrar error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Back-office: registrar error": {
+      "main": [
+        [
+          {
+            "node": "Avisar al equipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

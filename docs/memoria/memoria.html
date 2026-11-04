@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>NOCTILUZ · Memoria de la Tarea 2</title>
+<style>
+  @page { size: A4; margin: 20mm 19mm 18mm; }
+  :root { --tinta: #1b2233; --suave: #5b6478; --acento: #0d7f7a; --linea: #d5dae3; --fondo: #eef6f5; }
+  * { box-sizing: border-box; }
+  body { font: 10.5pt/1.45 "Segoe UI", Arial, sans-serif; color: var(--tinta); margin: 0; }
+  h1 { font-size: 24pt; margin: 0 0 2pt; letter-spacing: .5px; }
+  h2 { font-size: 13.5pt; color: var(--acento); margin: 16pt 0 5pt; border-bottom: 1px solid var(--linea); padding-bottom: 2pt; break-after: avoid; }
+  h3 { font-size: 11pt; margin: 10pt 0 3pt; break-after: avoid; }
+  p { margin: 0 0 6pt; text-align: justify; }
+  ul, ol { margin: 0 0 6pt; padding-left: 16pt; }
+  li { margin-bottom: 2pt; }
+  table { width: 100%; border-collapse: collapse; margin: 5pt 0 9pt; font-size: 9pt; break-inside: avoid; }
+  th { background: var(--fondo); text-align: left; }
+  th, td { border: 1px solid var(--linea); padding: 3pt 5pt; vertical-align: top; }
+  code { font: 8.8pt Consolas, monospace; background: #f3f4f7; padding: 0 2pt; overflow-wrap: anywhere; }
+  pre { font: 8.2pt/1.3 Consolas, monospace; background: #f3f4f7; padding: 6pt; margin: 4pt 0 8pt; white-space: pre-wrap; break-inside: avoid; }
+  .portada { border-bottom: 3px solid var(--acento); padding-bottom: 8pt; margin-bottom: 10pt; }
+  .sub { color: var(--suave); margin: 0; text-align: left; }
+  .datos { display: grid; grid-template-columns: 1fr 1fr; gap: 2pt 14pt; font-size: 9.2pt; margin-top: 6pt; }
+  .aviso { background: var(--fondo); padding: 5pt 8pt; font-size: 9.2pt; margin: 6pt 0; }
+  figure { margin: 6pt 0 9pt; break-inside: avoid; }
+  figcaption { font-size: 8.6pt; color: var(--suave); text-align: center; margin-top: 2pt; }
+  .salto { break-before: page; }
+  svg text { font-family: "Segoe UI", Arial, sans-serif; }
+</style>
+</head>
+<body>
+
+<header class="portada">
+  <h1>NOCTILUZ</h1>
+  <p class="sub">Integración, automatización de procesos e IA agéntica aplicada al back-office</p>
+  <p class="sub">Memoria de la Tarea 2 · Soluciones Informáticas para la Empresa · Grado en Ingeniería Informática · UCAM · Curso 2026-2027</p>
+  <div class="datos">
+    <div><strong>Integrantes:</strong> Luis Galindo Buendia · Roberto Ciller Miñana · Javier Zamora Lopez · Jun-Jie Jiang Yao</div>
+    <div><strong>Tienda:</strong> www.noctiluz.onl<br><strong>n8n:</strong> noctiluz-n8n.onrender.com<br><strong>Back-office:</strong> noctiluz-backoffice.onrender.com</div>
+    <div><strong>Repositorios:</strong> github.com/luisgabu0-gif/noctiluz-ucam · github.com/luisgabu0-gif/noctiluz-integracion</div>
+  </div>
+</header>
+<p class="aviso">Prototipo académico sin actividad comercial real. Los pagos usan el sandbox de PayPal y todos los datos de prueba son ficticios.</p>
+
+<h2>1. Proceso integrado</h2>
+<p>La tienda de la Tarea 1 vendía, pero la gestión posterior se hacía dentro de ella. Esta tarea separa las dos responsabilidades: la tienda sigue siendo el canal de venta y el trabajo interno pasa a un <strong>back-office independiente</strong>, con otra base de datos, otro servidor y su propio acceso. No hay tablas compartidas: los dos sistemas solo se comunican por mensajes a través de n8n.</p>
+<p>El proceso integrado es el ciclo de vida de un pedido y de su atención postventa, en tres escenarios:</p>
+<table>
+  <tr><th>Escenario</th><th>Disparador</th><th>Qué ocurre</th></tr>
+  <tr><td><strong>1. Pedido integrado</strong></td><td><code>order.created</code></td><td>n8n valida el evento, lo traduce y crea en el back-office el pedido con su cliente, líneas, importe, estado y fecha.</td></tr>
+  <tr><td><strong>2. Sincronización de estado</strong></td><td><code>order.status_changed</code> y panel del back-office</td><td>Un cambio en cualquiera de los dos sistemas se refleja en el otro. Si el otro no responde, queda pendiente: la tienda reintenta sola y el panel ofrece un botón de reintento.</td></tr>
+  <tr><td><strong>3. Incidencia postventa</strong></td><td><code>support.requested</code></td><td>Se crea un ticket ligado al cliente y al pedido. El agente de IA propone una acción, una persona decide en Telegram y, si la aprueba, el cliente recibe la respuesta.</td></tr>
+</table>
+<p>El evento <code>payment.simulated</code> también viaja por el webhook, pero solo se registra: el cambio a «pagado» llega en su propio <code>order.status_changed</code>, para que el estado del pedido tenga una única vía de actualización. Los eventos de navegación (<code>product.viewed</code>, <code>cart.item_added</code>, <code>checkout.started</code>) no se envían uno a uno, porque serían mucho tráfico sin valor operativo; se agregan bajo demanda para el embudo del cuadro de mando.</p>
+
+<h2>2. Flujo de datos</h2>
+<figure>
+<svg viewBox="0 0 700 262" width="100%" role="img" aria-label="Diagrama del flujo de datos entre tienda, n8n, back-office, Gemini y Telegram">
+  <defs><marker id="f" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#0d7f7a"/></marker></defs>
+  <g fill="#eef6f5" stroke="#0d7f7a" stroke-width="1.3">
+    <rect x="8" y="50" width="150" height="92" rx="7"/><rect x="274" y="50" width="150" height="92" rx="7"/><rect x="542" y="50" width="150" height="92" rx="7"/>
+    <rect x="186" y="196" width="138" height="56" rx="7"/><rect x="374" y="196" width="138" height="56" rx="7"/>
+  </g>
+  <g font-size="12" font-weight="700" fill="#1b2233" text-anchor="middle">
+    <text x="83" y="72">Tienda</text><text x="349" y="72">n8n</text><text x="617" y="72">Back-office</text><text x="255" y="218">Gemini</text><text x="443" y="218">Telegram</text>
+  </g>
+  <g font-size="9.5" fill="#5b6478" text-anchor="middle">
+    <text x="83" y="90">PHP + MySQL · DonDominio</text><text x="83" y="106">tabla eventos</text><text x="83" y="122">cola integracion_salida</text>
+    <text x="349" y="90">Render</text><text x="349" y="106">valida · traduce</text><text x="349" y="122">enruta · registra</text>
+    <text x="617" y="90">PHP + PostgreSQL · Render</text><text x="617" y="106">pedidos · incidencias</text><text x="617" y="122">ejecuciones · propuestas</text>
+    <text x="255" y="236">decide qué herramienta usar</text><text x="443" y="236">aprobación y aviso al cliente</text>
+  </g>
+  <g stroke="#0d7f7a" stroke-width="1.5" fill="none" marker-end="url(#f)">
+    <path d="M158 78 H272"/><path d="M272 116 H160"/><path d="M424 78 H540"/><path d="M540 116 H426"/>
+    <path d="M318 142 L278 194"/><path d="M262 194 L302 144"/><path d="M380 142 L420 194"/><path d="M436 194 L396 144"/>
+  </g>
+  <g font-size="9" fill="#1b2233" text-anchor="middle">
+    <text x="215" y="44">① evento (webhook)</text><text x="215" y="30">Bearer + Idempotency-Key</text><text x="215" y="132">⑤ estado / respuesta</text>
+    <text x="482" y="44">② API con X-Api-Token</text><text x="482" y="132">④ cambio de estado</text>
+    <text x="243" y="170">③ agente</text><text x="462" y="170">aprobar / rechazar</text>
+  </g>
+</svg>
+<figcaption>Figura 1. Los dos sistemas nunca se llaman directamente para los eventos: n8n es el único punto que conoce a ambos.</figcaption>
+</figure>
+<p>La tienda no llama a n8n en mitad de la compra. Guarda el evento y una copia en la cola <code>integracion_salida</code> <strong>dentro de la misma transacción</strong> que el pedido, y lo envía al terminar la petición, con el cliente ya atendido. Es el patrón <em>outbox</em>: si la tienda se cae justo después de guardar, el aviso no se pierde, y si n8n está dormido, el cliente no lo nota.</p>
+
+<h2>3. Contrato de integración</h2>
+<p>El contrato completo está en <code>docs/contrato_integracion.md</code>, y los payloads de los tres escenarios en <code>docs/payloads/</code>. Todos los mensajes comparten un sobre con <code>version</code>, <code>id</code> (UUID), <code>tipo</code>, <code>ocurrido_en</code>, <code>origen</code>, <code>sesion_id</code> y <code>datos</code>, más una <strong>foto</strong> del pedido o de la incidencia. Con esa foto el receptor no tiene que volver a preguntar a la tienda.</p>
+<pre>{ "version": 1, "id": "6f1c2d3e-…", "tipo": "order.created", "ocurrido_en": "2026-11-04T18:30:12+01:00",
+  "origen": "servidor", "datos": { "codigo": "NCZ-261104-K7M2QP", "total": 73.95, … },
+  "pedido": { "estado": "creado", "cliente": {…}, "lineas": […], "totales": {…}, "envio": {…} } }</pre>
+<p>El back-office tiene su propio formato de entrada (<code>event_id</code>, <code>event</code>, <code>occurred_at</code>, <code>source</code>, <code>data</code>). Durante el desarrollo apareció esa diferencia entre el contrato y el back-office. En lugar de igualarlos, n8n traduce de uno a otro: es la transformación que pide el enunciado, y permite cambiar un sistema sin tocar el otro.</p>
+<table>
+  <tr><th>Respuesta a la tienda</th><th>Significado</th><th>Qué hace la tienda</th></tr>
+  <tr><td>201 / 200</td><td>Creado / ya estaba (duplicado)</td><td>Marca el envío como enviado</td></tr>
+  <tr><td>401 / 403 / 422</td><td>Token incorrecto o datos no válidos</td><td>No reintenta: repetirlo no lo arreglaría. Queda como fallido y se puede reenviar a mano</td></tr>
+  <tr><td>5xx, <em>timeout</em></td><td>Receptor no disponible</td><td>Reintenta hasta 8 veces, esperando 1, 2, 4, 8, 16, 30, 60 y 60 minutos</td></tr>
+</table>
+
+<h2>4. Validaciones</h2>
+<p>Se valida en tres capas, porque cada una protege algo distinto:</p>
+<ul>
+  <li><strong>Autenticación.</strong> El webhook de n8n exige el token antes de ejecutar nada. Las API de la tienda y del back-office también tienen el suyo, comparado en tiempo constante.</li>
+  <li><strong>Forma y reglas del mensaje (n8n).</strong> Versión soportada, UUID, tipo admitido y fecha ISO. Código de pedido con su formato, estado y motivo conocidos, email válido, al menos una línea y cantidades de 1 a 9. También comprueba que <code>importe = cantidad × precio</code> y que <code>total = subtotal − descuento + envío = base + IVA</code>. Si algo falla responde 422 indicando el campo, y el flujo sale por la rama de error.</li>
+  <li><strong>Reglas de negocio (destino).</strong> Las del back-office son la idempotencia por <code>id</code> y el código de pedido único. La tienda aplica su máquina de estados a todo lo que llega de fuera, y «pagado» solo lo puede asignar la pasarela.</li>
+</ul>
+<p>La normalización pasa el email a minúsculas y recorta espacios, y deja en el back-office solo los campos que necesita.</p>
+
+<h2>5. Gestión de errores</h2>
+<table>
+  <tr><th>Fallo</th><th>Detección</th><th>Tratamiento</th></tr>
+  <tr><td>Datos incompletos</td><td>Validación de n8n</td><td>Rama de error: 422, fila en <code>ejecuciones</code> (tipo <code>validacion</code>) y aviso al equipo por Telegram</td></tr>
+  <tr><td>n8n dormido</td><td><em>Timeout</em> de 10 s en la tienda</td><td>El evento sigue en la cola. El primer intento despierta el servicio y el reintento entra</td></tr>
+  <tr><td>Back-office caído</td><td>HTTP sin respuesta en n8n</td><td>Dos intentos y 503 a la tienda, que reintenta. La idempotencia evita duplicar</td></tr>
+  <tr><td>Cambio de estado antes que su pedido</td><td>El pedido no existe aún</td><td>Se trata como transitorio (503), no como error de datos</td></tr>
+  <tr><td>Tienda no disponible (sentido inverso)</td><td>n8n responde <code>ok: false</code></td><td>El back-office guarda el cambio, lo marca sin sincronizar y ofrece reintento</td></tr>
+  <tr><td>Bucle entre sistemas</td><td>Actor <code>integracion:backoffice</code></td><td>Lo que llega del back-office no se le devuelve, y un estado igual al actual se ignora</td></tr>
+  <tr><td>Gemini no disponible o salida inválida</td><td>Código HTTP o esquema rechazado</td><td>Se registra, se avisa y la incidencia pasa a gestión manual. La salida no se «arregla»</td></tr>
+  <tr><td>Fallo no previsto en un flujo</td><td>Error Trigger de n8n</td><td>El flujo «Errores» guarda paso, causa y avisa</td></tr>
+</table>
+<p>La <strong>trazabilidad</strong> se apoya en el <code>id</code> del evento, que aparece en la tabla <code>eventos</code> y en la cola de la tienda, en el historial de n8n y en <code>eventos_recibidos</code> y <code>ejecuciones</code> del back-office. Con él se puede seguir un mismo hecho por los tres sistemas.</p>
+
+<h2>6. Agente de IA</h2>
+<p>El agente atiende el escenario 3. No se limita a redactar: decide qué datos necesita, los pide con sus herramientas y termina con una propuesta estructurada. Usa <code>gemini-3.5-flash</code> con <em>function calling</em> en modo obligatorio, de forma que cada turno es una llamada a herramienta y no texto libre.</p>
+<p>El bucle está hecho con nodos normales de n8n: Gemini pide una herramienta, un nodo Code comprueba los límites, el nodo correspondiente la ejecuta y el resultado vuelve al modelo. No se usaron los nodos de IA de n8n porque agotan los 512 MB de Render gratuito (<em>heap out of memory</em>). Esta decisión tiene una ventaja: los límites quedan en código que se puede leer y probar, y no dependen de que el modelo los respete.</p>
+<p>La salida se guarda en <code>propuestas_agente</code> y contiene los campos que exige el enunciado:</p>
+<table>
+  <tr><th>Campo exigido</th><th>Campo guardado</th></tr>
+  <tr><td>Tipo de caso detectado</td><td><code>clasificacion</code> (envio, producto, devolucion, pago, consulta, otro) y <code>resumen</code></td></tr>
+  <tr><td>Datos consultados</td><td><code>datos_consultados</code>: lo escribe n8n con lo que se ejecutó de verdad, no el modelo</td></tr>
+  <tr><td>Acción propuesta</td><td><code>accion_propuesta</code> y <code>respuesta_cliente</code></td></tr>
+  <tr><td>Justificación</td><td><code>justificacion</code></td></tr>
+  <tr><td>Confianza o prioridad</td><td><code>confianza</code> (0 a 1) y <code>prioridad</code></td></tr>
+  <tr><td>Riesgos o advertencias</td><td><code>riesgos</code></td></tr>
+  <tr><td>Estado final</td><td><code>estado</code>: pendiente, aprobada o rechazada, con quién decidió y cuándo</td></tr>
+</table>
+
+<h2>7. Herramientas del agente</h2>
+<table>
+  <tr><th>Herramienta</th><th>Tipo</th><th>Qué hace</th><th>Límite</th></tr>
+  <tr><td><code>consultar_pedido</code></td><td>Consulta</td><td>Estado, líneas e historial del pedido en el back-office</td><td>Solo el pedido de esa incidencia</td></tr>
+  <tr><td><code>consultar_historial_incidencias</code></td><td>Consulta</td><td>Incidencias anteriores del cliente</td><td>Solo el email de esa incidencia</td></tr>
+  <tr><td><code>proponer_accion</code></td><td>Propuesta de acción</td><td>Registra la propuesta y la envía a revisión</td><td>Cuatro acciones cerradas; no ejecuta nada</td></tr>
+</table>
+
+<h2>8. Límites y supervisión humana</h2>
+<p>Se aplica la revisión humana previa, con registro explícito de la decisión. La propuesta llega al chat del equipo con dos botones. Solo después de pulsar «Aprobar» se actúa: se cambia el estado si procede, se guarda la respuesta en la tienda (el cliente la ve en «Mi cuenta») y, si vinculó Telegram, se le envía por ahí.</p>
+<ul>
+  <li><strong>Puede:</strong> leer el pedido y el historial de esa incidencia, y proponer responder, marcar el pedido con incidencia, escalar o cerrar.</li>
+  <li><strong>No puede:</strong> escribir al cliente, cambiar estados, consultar datos de otros clientes, prometer reembolsos ni usar otras herramientas.</li>
+  <li><strong>Controles en código, fuera del modelo:</strong> máximo de 5 iteraciones; rechazo de consultas a otro pedido o cliente; validación del esquema en el back-office, que además fuerza <code>requiere_aprobacion</code> aunque el modelo diga lo contrario; solo se aceptan decisiones desde el chat del equipo; y una decisión ya tomada no se repite.</li>
+  <li><strong>Inyección de instrucciones:</strong> el mensaje del cliente se entrega delimitado y marcado como dato. Aun así, un cliente podría intentar manipular la propuesta. Por eso los permisos no dependen del modelo y una persona revisa siempre.</li>
+</ul>
+<p>Telegram se vincula sin pedir datos personales. El pedido muestra un enlace al bot que incluye el código y una firma HMAC, y así nadie puede vincular un pedido ajeno.</p>
+
+<h2>9. Métricas generadas</h2>
+<p>El cuadro de mando del back-office calcula nueve métricas en el momento de consultarlo, a partir de las tablas reales y de los eventos de la tienda. Ninguna cifra se introduce a mano. La justificación con sus referencias está en <code>docs/justificacion_metricas.md</code>, y se apoya en las dimensiones de rendimiento de procesos de Dumas et al. (2018), las señales de monitorización de Beyer et al. (2016), la gestión de servicio de ITIL 4 y el artículo 14 del Reglamento (UE) 2024/1689.</p>
+<table>
+  <tr><th>Métrica</th><th>Fuente</th><th>Decisión que permite</th></tr>
+  <tr><td>M1 Pedidos por día (gráfico de barras, 30 días)</td><td>Pedidos del back-office</td><td>Detectar caídas de demanda o de la integración</td></tr>
+  <tr><td>M2 Importe y ticket medio, solo pagados</td><td>Pedidos pagados</td><td>Valorar promociones</td></tr>
+  <tr><td>M3 Productos más solicitados</td><td>Líneas de pedido</td><td>Decidir la reposición</td></tr>
+  <tr><td>M4 Pedidos por estado y pendientes</td><td>Estado actual</td><td>Localizar cuellos de botella</td></tr>
+  <tr><td>M5 Incidencias abiertas y por cada 100 pedidos</td><td>Tickets</td><td>Dimensionar el soporte y medir calidad</td></tr>
+  <tr><td>M6 Primera respuesta, resolución y SLA de 48 h</td><td>Fechas del ticket y de la aprobación</td><td>Saber si el servicio llega a tiempo</td></tr>
+  <tr><td>M7 Embudo de conversión</td><td>Eventos de la tienda por sesión</td><td>Encontrar dónde se pierden clientes</td></tr>
+  <tr><td>M8 Integración correcta y fallida, errores por tipo</td><td>Ejecuciones y cola de la tienda</td><td>Distinguir fallos de datos, de configuración o de disponibilidad</td></tr>
+  <tr><td>M9 Propuestas del agente y aprobadas</td><td>Decisiones humanas</td><td>Decidir cuánta confianza dar al agente</td></tr>
+</table>
+
+<h2>10. Riesgos, limitaciones y mejoras</h2>
+<table>
+  <tr><th>Riesgo o limitación</th><th>Efecto</th><th>Mejora posible</th></tr>
+  <tr><td>Render gratuito se duerme a los 15 minutos</td><td>Hasta un minuto de retraso en el primer evento</td><td>Plan de pago o un servicio siempre activo</td></tr>
+  <tr><td>Los reintentos de la tienda dependen de que entre tráfico o de que n8n esté despierto</td><td>Un evento puede esperar más de lo previsto</td><td>Tarea programada en el hosting</td></tr>
+  <tr><td>Disponibilidad de Gemini (se observaron saturaciones)</td><td>La incidencia pasa a gestión manual</td><td>Modelo de respaldo automático</td></tr>
+  <tr><td>Un <code>id</code> repetido no compara el contenido</td><td>Un conflicto real pasaría por duplicado</td><td>Guardar una huella del mensaje</td></tr>
+  <tr><td>Aprobar desde el panel web no avisa al cliente</td><td>Hay que aprobar por Telegram para que salga</td><td>Que el panel llame también a n8n</td></tr>
+  <tr><td>Tokens estáticos entre sistemas</td><td>Una filtración da acceso hasta que se cambie</td><td>Firma HMAC por mensaje y rotación</td></tr>
+  <tr><td>Datos de clientes en un proveedor de IA externo</td><td>Sería un problema de RGPD con datos reales</td><td>Seudonimizar y firmar un acuerdo de tratamiento</td></tr>
+  <tr><td>Stock no sincronizado con el back-office</td><td>El back-office no decide sobre disponibilidad</td><td>Añadir un evento de inventario</td></tr>
+</table>
+<p>La matriz de decisión (<code>docs/matriz_decision.md</code>) justifica la arquitectura híbrida frente a las demás alternativas.</p>
+
+<h2>11. Declaración del punto de partida</h2>
+<p>La solución parte de la tienda de la Tarea 1, desarrollada por el grupo a partir de una versión inicial generada con IA, como se declaró en aquella memoria. El back-office, los flujos y la integración son desarrollo nuevo de esta tarea, sin repositorios ni plantillas de terceros. Se usan como herramientas n8n, Render, PayPal sandbox, Gemini, Telegram y Chart.js. El código se escribió con ayuda de IA generativa, como detalla el anexo A.</p>
+
+<h2 class="salto">Anexo A. Uso de IA generativa e IA agéntica</h2>
+<h3>A.1 Distinción exigida</h3>
+<table>
+  <tr><th>Uso</th><th>Herramienta</th><th>Para qué</th></tr>
+  <tr><td>Apoyo al desarrollo, documentación y depuración</td><td>Claude Code (Anthropic), modelos Claude Opus 5.5 y Claude Sonnet 5.5</td><td>Análisis del enunciado, diseño, programación, depuración del despliegue y borradores de documentación. El grupo revisó y probó el resultado.</td></tr>
+  <tr><td>IA como componente funcional</td><td>Gemini <code>gemini-3.5-flash</code> (Google)</td><td>Clasificar la incidencia y redactar la propuesta de respuesta</td></tr>
+  <tr><td>IA agéntica con herramientas, límites y supervisión</td><td>El mismo modelo dentro del flujo «3 Agente de incidencias»</td><td>Decidir qué consultar y proponer una acción, siempre con aprobación humana</td></tr>
+</table>
+<h3>A.2 Arquitectura agéntica</h3>
+<p>Hay un único agente, de soporte postventa. No hay varios agentes ni reparto de roles entre ellos.</p>
+<h3>A.3 Instrucciones del agente (resumen)</h3>
+<p>Debe consultar antes de proponer y terminar siempre con <code>proponer_accion</code>. Solo propone. No promete reembolsos ni plazos que no estén en los datos. Trata el mensaje del cliente como dato. Propone «escalar» si los datos no bastan o el caso es delicado. Responde en español, con tono cercano. El texto completo está en el nodo Gemini de <code>n8n/03_agente_incidencias.json</code>.</p>
+<h3>A.4 Herramientas, datos y acciones</h3>
+<ul>
+  <li><strong>Herramientas conectadas:</strong> <code>consultar_pedido</code>, <code>consultar_historial_incidencias</code> y <code>proponer_accion</code>.</li>
+  <li><strong>Datos a los que accede:</strong> texto de la incidencia, nombre y email del cliente, y pedido e historial de esa incidencia. Solo datos ficticios.</li>
+  <li><strong>Acciones que puede realizar:</strong> proponer responder al cliente, marcar el pedido con incidencia, escalar o cerrar la incidencia.</li>
+  <li><strong>Acciones prohibidas:</strong> ejecutar cualquier acción sin aprobación, escribir al cliente, cambiar estados, ver datos de otros clientes.</li>
+  <li><strong>Revisión humana:</strong> botones Aprobar y Rechazar en el chat de Telegram del equipo, con registro de quién decidió y cuándo.</li>
+</ul>
+<h3>A.5 Errores detectados y cambios introducidos</h3>
+<table>
+  <tr><th>Error detectado en las pruebas</th><th>Cambio del grupo</th></tr>
+  <tr><td>Los nodos de IA de n8n agotaban la memoria de Render</td><td>Llamar a Gemini por HTTP y construir el bucle de herramientas con nodos normales</td></tr>
+  <tr><td><code>gemini-2.5-flash</code> no estaba disponible para cuentas nuevas y <code>gemini-3.8-flash</code> devolvía 503 por saturación</td><td>Consultar la lista de modelos y usar <code>gemini-3.5-flash</code>, con reintentos</td></tr>
+  <tr><td>El formato del contrato no coincidía con el del back-office</td><td>Traducir en n8n</td></tr>
+  <tr><td>La salida del agente no incluía datos consultados ni riesgos</td><td>Añadir ambos campos al esquema y a la validación; los datos consultados los escribe n8n</td></tr>
+  <tr><td>El <code>.gitignore</code> excluía <code>Config.php</code> por no distinguir mayúsculas en Windows, y el back-office no arrancaba en Render</td><td>Acotar la regla a <code>public_html/app/config.php</code> y ocultar los errores de PHP en producción</td></tr>
+</table>
+</body>
+</html>

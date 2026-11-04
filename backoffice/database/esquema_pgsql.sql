@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS propuestas_agente (
   accion_propuesta    VARCHAR(40)   NOT NULL,
   respuesta_cliente   TEXT          NULL,
   justificacion       VARCHAR(600)  NOT NULL,
+  riesgos             VARCHAR(400)  NULL,
+  datos_consultados   TEXT          NULL,                 -- JSON: qué herramientas usó el agente y qué le devolvieron
   confianza           NUMERIC(3,2)  NOT NULL,
   requiere_aprobacion BOOLEAN       NOT NULL DEFAULT TRUE,
   estado              VARCHAR(20)   NOT NULL DEFAULT 'pendiente',  -- pendiente | aprobada | rechazada
