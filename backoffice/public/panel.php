@@ -54,7 +54,8 @@ $vista = $_GET['vista'] ?? 'resumen';
 
 // ── Cuadro de mando ───────────────────────────────────────────────────────────────────────────
 if ($vista === 'resumen') {
-    $dias = in_array((int) ($_GET['dias'] ?? 30), [7, 30, 90], true) ? (int) $_GET['dias'] : 30;
+    $dias = (int) ($_GET['dias'] ?? 30);
+    $dias = in_array($dias, [7, 30, 90], true) ? $dias : 30;
     $m = Metricas::calcular($dias);
     $tienda = Metricas::tienda();
     Panel::cabecera('Cuadro de mando', 'resumen');
