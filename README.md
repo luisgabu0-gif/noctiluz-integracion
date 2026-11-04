@@ -91,8 +91,9 @@ Con los flujos publicados:
 | Escenario 1 | Haz un pedido en la tienda | Aparece en Pedidos del back-office |
 | Escenario 2 | Cambia el estado en la tienda o en el back-office | El otro sistema se actualiza |
 | Escenario 3 | Abre una incidencia con un pedido | Ticket creado y propuesta en Telegram |
-| Duplicado | Envía dos veces `docs/payloads/escenario1_order_created.json` (repo de la tienda) al webhook | La segunda vez no se crea nada |
-| Datos incompletos | Envía `docs/payloads/error_pedido_sin_lineas.json` al webhook | Rechazo 422 y fila de error en Ejecuciones |
+| Errores | Ejecuta `n8n/probar_errores.ps1` y pega el token de la tienda cuando lo pida | 422 en el evento sin líneas, 201 en el pedido y `duplicado: true` al repetirlo |
+
+El script envía los payloads de `docs/payloads/`, en el repositorio de la tienda. Las capturas y resultados de las pruebas están en `evidencias/`.
 
 ## Usuarios de prueba
 
@@ -110,6 +111,7 @@ Con los flujos publicados:
 - Una propuesta aprobada desde el panel web guarda la decisión, pero solo la aprobación por Telegram envía la respuesta al cliente.
 - El flujo `NOCTILUZ · Errores` no se ha podido forzar en las pruebas, porque los demás flujos tratan sus errores en sus propias ramas.
 - Un `id` de evento repetido se considera duplicado sin comparar su contenido.
+- El hosting de la tienda no dispone de `mail()`, así que las facturas quedan pendientes de envío por correo.
 - El agente depende de la disponibilidad de Gemini. Si falla, la incidencia se queda creada y el equipo recibe un aviso para gestionarla a mano.
 - Las métricas describen las pruebas del prototipo, no un negocio real.
 

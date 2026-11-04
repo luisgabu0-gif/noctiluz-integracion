@@ -121,6 +121,19 @@
 </table>
 <p>La <strong>trazabilidad</strong> se apoya en el <code>id</code> del evento, que aparece en la tabla <code>eventos</code> y en la cola de la tienda, en el historial de n8n y en <code>eventos_recibidos</code> y <code>ejecuciones</code> del back-office. Con él se puede seguir un mismo hecho por los tres sistemas.</p>
 
+<h3>Pruebas en el entorno desplegado</h3>
+<p>El 4 de noviembre de 2026 se ejecutaron estas pruebas con datos ficticios en la tienda, n8n y el back-office publicados. Las capturas y el resultado de la prueba de errores están en la carpeta <code>evidencias/</code>.</p>
+<table>
+  <tr><th>Prueba</th><th>Resultado</th></tr>
+  <tr><td>Escenario 1</td><td>El pedido <code>NCZ-261104-LKS498</code> llegó al back-office con cliente, línea, importe, estado y fecha</td></tr>
+  <tr><td>Escenario 2</td><td>El cambio a «En preparación» hecho en el back-office se reflejó en la tienda</td></tr>
+  <tr><td>Escenario 3</td><td>La incidencia quedó ligada al pedido y al cliente. El agente consultó sus datos, una persona aprobó la propuesta y el cliente recibió la respuesta por Telegram</td></tr>
+  <tr><td>Rechazo humano</td><td>Se rechazó una propuesta que prometía un correo de seguimiento, y la decisión quedó registrada</td></tr>
+  <tr><td>Evento sin líneas</td><td>Respuesta 422, con el campo erróneo y una fila de error en <code>ejecuciones</code></td></tr>
+  <tr><td>Evento repetido</td><td>Respuesta <code>duplicado: true</code>, sin crear otro pedido</td></tr>
+  <tr><td>Gemini no disponible</td><td>Varias llamadas devolvieron 503. No se envió nada al cliente y el equipo recibió el aviso de revisión manual</td></tr>
+</table>
+
 <h2>6. Agente de IA</h2>
 <p>El agente atiende el escenario 3. No se limita a redactar: decide qué datos necesita, los pide con sus herramientas y termina con una propuesta estructurada. Usa <code>gemini-3.5-flash</code> con <em>function calling</em> en modo obligatorio, de forma que cada turno es una llamada a herramienta y no texto libre.</p>
 <p>El bucle está hecho con nodos normales de n8n: Gemini pide una herramienta, un nodo Code comprueba los límites, el nodo correspondiente la ejecuta y el resultado vuelve al modelo. No se usaron los nodos de IA de n8n porque agotan los 512 MB de Render gratuito (<em>heap out of memory</em>). Esta decisión tiene una ventaja: los límites quedan en código que se puede leer y probar, y no dependen de que el modelo los respete.</p>
@@ -176,6 +189,7 @@
   <tr><td>Render gratuito se duerme a los 15 minutos</td><td>Hasta un minuto de retraso en el primer evento</td><td>Plan de pago o un servicio siempre activo</td></tr>
   <tr><td>Los reintentos de la tienda dependen de que entre tráfico o de que n8n esté despierto</td><td>Un evento puede esperar más de lo previsto</td><td>Tarea programada en el hosting</td></tr>
   <tr><td>Disponibilidad de Gemini (se observaron saturaciones)</td><td>La incidencia pasa a gestión manual</td><td>Modelo de respaldo automático</td></tr>
+  <tr><td>El hosting de la tienda no dispone de <code>mail()</code></td><td>Las facturas quedan pendientes de envío por correo</td><td>Usar SMTP o un servicio de correo transaccional</td></tr>
   <tr><td>Un <code>id</code> repetido no compara el contenido</td><td>Un conflicto real pasaría por duplicado</td><td>Guardar una huella del mensaje</td></tr>
   <tr><td>Aprobar desde el panel web no avisa al cliente</td><td>Hay que aprobar por Telegram para que salga</td><td>Que el panel llame también a n8n</td></tr>
   <tr><td>Tokens estáticos entre sistemas</td><td>Una filtración da acceso hasta que se cambie</td><td>Firma HMAC por mensaje y rotación</td></tr>
@@ -217,6 +231,9 @@
   <tr><td>El <code>.gitignore</code> excluía <code>Config.php</code> por no distinguir mayúsculas en Windows, y el back-office no arrancaba en Render</td><td>Acotar la regla a <code>public_html/app/config.php</code> y ocultar los errores de PHP en producción</td></tr>
   <tr><td>n8n se reiniciaba en Render con salida 134 mientras se importaban los flujos</td><td>Ajustar <code>NODE_OPTIONS</code>, desactivar funciones no usadas y limpiar ejecuciones antiguas</td></tr>
   <tr><td>Al importar los flujos, las credenciales no quedaban asignadas de forma visible</td><td>Guardar, recargar y comprobar la credencial de cada nodo antes de publicar</td></tr>
+  <tr><td>Los 503 de Gemini no se reintentaban porque el nodo HTTP tenía activada la opción <em>Never Error</em></td><td>Desactivarla en ese nodo y permitir cinco intentos</td></tr>
+  <tr><td>El agente propuso prometer un correo que el hosting no puede enviar</td><td>La persona revisora rechazó la propuesta y la decisión quedó registrada</td></tr>
+  <tr><td>El cuadro de mando mostraba 0 pedidos al abrirse, aunque el gráfico tenía datos</td><td>Corregir el periodo por defecto, que se calculaba como 0 días en vez de 30</td></tr>
   <tr><td>La tienda respondía 401 a n8n porque los tokens no coincidían</td><td>Usar el mismo valor en <code>config.php</code>, Render y n8n, y documentar qué valores deben coincidir</td></tr>
 </table>
 </body>

@@ -1,0 +1,13 @@
+Prueba ejecutada el 04/11/2026 con n8n/probar_errores.ps1 y datos ficticios.
+
+== Evento sin lineas (esperado: 422)
+HTTP 422
+{"error":"Faltan campos o no cumplen las reglas.","campos":{"lineas":"Debe haber al menos una línea."}}
+
+== Pedido, primer envio (esperado: 201)
+HTTP 201
+{"ok":true,"id":"6f1c2d3e-4a5b-4c7d-8e9f-0a1b2c3d4e5f","entidad":"pedido","referencia":"NCZ-261104-K7M2QP"}
+
+== Mismo pedido, segundo envio (esperado: duplicado)
+HTTP 200
+{"ok":true,"id":"6f1c2d3e-4a5b-4c7d-8e9f-0a1b2c3d4e5f","duplicado":true,"resultado":"duplicado"}

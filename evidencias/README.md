@@ -21,3 +21,19 @@ Guarda aquí las capturas con estos nombres. Usa solo datos ficticios (`@ejemplo
 | `15_duplicado.png` | Evento repetido sin crear un segundo pedido | Rúbrica: idempotencia |
 | `16_ejecuciones.png` | Tabla Ejecuciones con correctas y fallidas | 13.e |
 | `17_cuadro_mando.png` | Métricas y gráfico de pedidos | 9.i |
+
+Evidencias complementarias:
+
+| Archivo | Qué muestra |
+|---|---|
+| `03b_n8n_flujo1_detalle.png` | Detalle de la ruta del flujo 1 |
+| `04b_detalle_pedido.png` | Detalle del pedido en el back-office |
+| `07b_incidencia_tienda.png` | Confirmación de la incidencia en la tienda |
+| `08b_incidencias_avisadas.png` | Incidencias con cliente avisado por Telegram |
+| `11a_telegram_vinculado.png` | Vinculación del pedido con Telegram |
+| `11b_propuesta3_telegram.png`, `11c_propuesta4_telegram.png` | Propuestas posteriores del agente |
+| `13b_decision_aprobada_telegram.png`, `13c_decision_aprobada_backoffice.png` | Aprobación registrada |
+| `14_15_prueba_errores.txt` | Resultado del 422 y del duplicado |
+| `14b_fallo_gemini_telegram.webp` | Aviso de revisión manual cuando Gemini devuelve 503 |
+
+`16_ejecuciones.png` muestra además la fila de error del 422, así que hace de `14_error_422.png`.

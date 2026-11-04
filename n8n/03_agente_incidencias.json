@@ -64,8 +64,7 @@
           "timeout": 45000,
           "response": {
             "response": {
-              "fullResponse": true,
-              "neverError": true
+              "fullResponse": true
             }
           }
         }
@@ -85,7 +84,7 @@
         }
       },
       "retryOnFail": true,
-      "maxTries": 3,
+      "maxTries": 5,
       "waitBetweenTries": 5000,
       "onError": "continueRegularOutput"
     },
